@@ -282,18 +282,19 @@ Mudança no formato de uma resposta já publicada se combina com o front antes d
 - Nessa configuração, `CORS_ALLOWED_ORIGINS` só precisa da origem do painel em
   desenvolvimento.
 
-## 5. Diferenças entre o protótipo e a especificação
+## 5. Decisões tiradas do protótipo
 
-Pontos que aparecem nas telas e precisam de decisão do grupo. Até a decisão, vale a proposta.
+Pontos que aparecem nas telas e não constavam da especificação. Estão decididos e já
+refletidos na especificação; mudar algum deles se combina com o front antes.
 
-| Tela | O que aparece | Proposta |
+| Tela | O que aparece | Decisão |
 |---|---|---|
-| Cotação | Pedido marcado como "Novo seguro" ou "Renovação" | Coluna `motivo` (`NOVO` \| `RENOVACAO`) em `cotacao`, já no P1 |
-| Notificações | "Renovação em 30 dias" | Aviso de renovação é P2 na especificação; no P1 a notificação pode vir do seed |
-| Início (versão antiga) | Cartão com imagem e informações do veículo | Fora do modelo atual. Se voltar, entra como `detalhes jsonb` em `apolice`, preenchido no seed |
-| Início | Avatar com iniciais | Calculadas pela API a partir do nome (`iniciais`) |
-| Sinistro | Protocolo `SIN-2026-000123` | Formato `SIN-AAAA-NNNNNN`, sequência no banco |
-| Apólices | Número `AU-2026-…`, `VI-2026-…` | Prefixo por produto: `AU`, `RE`, `VI`, `EM` |
+| Cotação | Pedido marcado como "Novo seguro" ou "Renovação" | Coluna `motivo` (`NOVO` \| `RENOVACAO`) em `cotacao`, no P1. O app envia o motivo no `POST /cotacoes` |
+| Notificações | "Renovação em 30 dias" | O aviso automático continua P2. No P1, notificações de renovação vêm do seed, com `destino_tipo = APOLICE` |
+| Início (versão antiga) | Cartão com imagem e informações do veículo | Fora do P1 (a versão atual do Início já não tem o cartão). Se voltar, entra como `detalhes jsonb` em `apolice` |
+| Início | Avatar com iniciais | A API devolve `iniciais` no `/dashboard` e no `/me`: primeira letra do primeiro e do último nome |
+| Sinistro | Protocolo `SIN-2026-000123` | Formato `SIN-AAAA-NNNNNN` (ano da abertura + sequência de 6 dígitos), gerado no banco |
+| Apólices | Número `AU-2026-…`, `VI-2026-…` | Formato `PP-AAAA-NNNNNN`, com prefixo por produto: `AU`, `RE`, `VI`, `EM`. Gerado no seed |
 
 A troca de Spring Boot foi aceita pela BS Labs: API em Node.js com Express e painel em Next.js.
 

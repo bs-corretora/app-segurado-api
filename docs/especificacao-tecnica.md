@@ -287,7 +287,7 @@ erDiagram
 | id | uuid | PK |
 | cpf_titular | varchar(11) | NOT NULL |
 | perfil_id | uuid | FK `perfil`; preenchido no vínculo |
-| numero | varchar(30) | UNIQUE |
+| numero | varchar(30) | UNIQUE; formato `PP-AAAA-NNNNNN`, prefixo `AU` \| `RE` \| `VI` \| `EM` conforme o produto |
 | produto | varchar(30) | `AUTO` \| `RESIDENCIAL` \| `VIDA` \| `EMPRESARIAL` |
 | status | varchar(20) | `ATIVA` \| `VENCIDA` \| `CANCELADA` |
 | inicio_vigencia | date | NOT NULL |
@@ -325,7 +325,7 @@ erDiagram
 | id | uuid | PK |
 | perfil_id | uuid | FK `perfil` |
 | apolice_id | uuid | FK `apolice`; a apólice deve pertencer ao mesmo perfil |
-| protocolo | varchar(20) | UNIQUE; gerado pela API |
+| protocolo | varchar(20) | UNIQUE; formato `SIN-AAAA-NNNNNN` (ano + sequência), gerado no banco |
 | tipo | varchar(30) | `COLISAO` \| `ROUBO` \| `INCENDIO` \| `DANO_ELETRICO` \| ... |
 | data_ocorrencia | timestamptz | CHECK não futura |
 | local | varchar(200) | |
@@ -351,6 +351,7 @@ erDiagram
 | id | uuid | PK |
 | perfil_id | uuid | FK `perfil` |
 | produto | varchar(30) | domínio de `apolice.produto` |
+| motivo | varchar(20) | `NOVO` \| `RENOVACAO` |
 | dados | jsonb | campos do formulário, variáveis por produto |
 | status | varchar(20) | `RECEBIDA` \| `EM_ANALISE` \| `RESPONDIDA` |
 | resposta | text | |
@@ -462,7 +463,7 @@ retorna mensagem genérica, sem indicar qual dado já existe.
 
 | Método | Rota | Descrição |
 |---|---|---|
-| GET | `/dashboard` | Nome, tempo de casa, indicador de aniversário, apólices ativas e contagem de notificações não lidas |
+| GET | `/dashboard` | Nome e iniciais, tempo de casa, indicador de aniversário, apólices ativas e contagem de notificações não lidas |
 
 ### 6.5 Apólices
 
