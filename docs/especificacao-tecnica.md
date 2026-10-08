@@ -27,8 +27,7 @@ Documento de Requisitos emitido pela BS Labs (RF-01 a RF-08 e RNF-01 a RNF-03).
 
 ### 1.4 Convenções
 
-- **[EM ABERTO]** marca itens que dependem de decisão. A proposta vigente está descrita no
-  próprio item; a lista consolidada está na seção 10.
+- As decisões que não constavam do Documento de Requisitos estão consolidadas na seção 10.
 - **Origem** de cada funcionalidade:
   - **RF-xx**: requisito do Documento de Requisitos.
   - **Base**: não consta do Documento de Requisitos, mas é condição para o funcionamento do
@@ -54,7 +53,7 @@ Documento de Requisitos emitido pela BS Labs (RF-01 a RF-08 e RNF-01 a RNF-03).
 | Documentação da API | OpenAPI 3 gerado dos schemas Zod (`@asteasolutions/zod-to-openapi`), Swagger UI |
 | Rate limit | rate-limiter-flexible |
 | Tarefas agendadas | pg_cron |
-| Notificação push | Expo Push Notifications **[EM ABERTO: depende do uso de Expo no app]** |
+| Notificação push | Expo Push Notifications |
 | Migrations e seed | Supabase CLI (`supabase/migrations/*.sql`, `supabase/seed.sql`) |
 | Conteinerização | Docker |
 
@@ -399,7 +398,6 @@ erDiagram
 `cpf_titular`. O vínculo exige o CPF e o número de uma apólice do mesmo titular; o CPF isolado
 não é considerado prova de titularidade. Havendo vínculo, `cliente_desde` recebe o menor
 `inicio_vigencia` entre as apólices vinculadas; sem vínculo, recebe a data do cadastro.
-**[EM ABERTO]**
 
 Limitação: como `cpf` é único, um cadastro com CPF de terceiro, sem número de apólice, impede
 o cadastro do titular. No protótipo, a conta é removida pelo administrador; em produção, seria
@@ -474,7 +472,7 @@ retorna mensagem genérica, sem indicar qual dado já existe.
 
 | Método | Rota | Descrição |
 |---|---|---|
-| GET | `/contatos?tipo={tipo}` | Contatos ativos do tipo `ASSISTENCIA_24H` ou `SINISTRO`, filtrados pelos produtos do usuário |
+| GET | `/contatos?tipo={tipo}` | Contatos ativos do tipo `ASSISTENCIA_24H` ou `SINISTRO`, filtrados pelos produtos do usuário; sem apólice vinculada, todos os contatos de assistência |
 | POST | `/sinistros` | Abertura; retorna o protocolo |
 | GET | `/sinistros` | Sinistros do usuário |
 | GET | `/sinistros/{id}` | Detalhe com histórico de eventos |
@@ -598,8 +596,8 @@ PostgreSQL (suportado pela mesma biblioteca).
 
 | Componente | Desenvolvimento | Produção |
 |---|---|---|
-| API | Imagem Docker multi-stage: build Next.js `output: 'standalone'`; runtime `node:22-alpine`, usuário não root, porta 3000 | Mesma imagem, em provedor com suporte a contêiner **[EM ABERTO]** |
-| Banco, Auth, Storage | `supabase start` (Supabase CLI sobre Docker), com migrations e seed | Supabase Cloud **[EM ABERTO]** |
+| API | Imagem Docker multi-stage: build Next.js `output: 'standalone'`; runtime `node:22-alpine`, usuário não root, porta 3000 | Mesma imagem, no Render (serviço web Docker) |
+| Banco, Auth, Storage | `supabase start` (Supabase CLI sobre Docker), com migrations e seed | Supabase Cloud |
 
 Inicialização em desenvolvimento: `supabase start` seguido de `docker compose up --build`.
 
@@ -631,18 +629,21 @@ Inicialização em desenvolvimento: `supabase start` seguido de `docker compose 
 | PostgreSQL | PostgreSQL gerenciado pelo Supabase (aderente) |
 | Backend e banco conteinerizados em desenvolvimento e produção | Aderente em desenvolvimento; em produção, o banco é serviço gerenciado. Alternativa aderente: Supabase self-hosted via Docker Compose |
 
-## 10. Itens em aberto
+## 10. Decisões
 
-| # | Item | Proposta |
+Itens que não constavam do Documento de Requisitos ou que divergiam dele. Todos estão
+decididos; mudar algum deles exige atualizar esta especificação antes do código.
+
+| # | Item | Decisão |
 |---|---|---|
-| 1 | Aceite, pela BS Labs, da troca de Spring Boot por Next.js | **Resolvido:** aceite dado (stack liberada: Node.js, Express, React, Next.js) |
-| 2 | Conteinerização do banco em produção | Supabase Cloud; self-hosted se exigido |
-| 3 | Regra de vínculo entre cadastro e apólices | CPF e número de apólice do titular |
-| 4 | Identificador de login | E-mail; CPF mantido no perfil |
-| 5 | Abrangência do RF-03 | Contatos, abertura com protocolo e histórico; sem anexos no P1 |
-| 6 | Uso de Expo no aplicativo | Expo Push para Android e iOS |
-| 7 | Hospedagem da API | Provedor com suporte a contêiner (ex.: Render, Railway) |
-| 8 | Recompensa por indicação | Selo no aplicativo, sem valor monetário |
-| 9 | Funcionalidades disponíveis ao usuário sem apólice | Cotação, indicação, assistência e ajuda; sem sinistro |
-| 10 | Confirmação de e-mail no cadastro | Desabilitada no protótipo |
-| 11 | Escopo P2 a ser assumido | Carteirinha, coberturas e aviso de renovação |
+| 1 | Troca de Spring Boot | Aceita pela BS Labs. API, painel e página pública em Next.js; app em React Native |
+| 2 | Banco em produção | Supabase Cloud. Em desenvolvimento, Supabase local via Docker (`supabase start`) |
+| 3 | Vínculo entre cadastro e apólices | CPF e número de uma apólice do mesmo titular. O CPF sozinho não vincula |
+| 4 | Identificador de login | E-mail e senha. O CPF fica no perfil e é usado só no vínculo |
+| 5 | Abrangência do RF-03 | Contatos de sinistro, abertura com protocolo e histórico de status. Anexo de fotos fica no P2 |
+| 6 | Push no aplicativo | App em Expo; push pelo Expo Push para Android e iOS |
+| 7 | Hospedagem da API | Render, serviço web a partir do `Dockerfile` |
+| 8 | Recompensa por indicação | Selo no aplicativo, sem valor monetário (P3) |
+| 9 | Usuário sem apólice vinculada | Acessa cotação, indicação, assistência (todos os contatos) e ajuda. Não abre sinistro; o Início destaca a cotação |
+| 10 | Confirmação de e-mail no cadastro | Desabilitada no protótipo, pela cota baixa do SMTP padrão do Supabase. A redefinição de senha por e-mail continua |
+| 11 | Escopo P2 | Carteirinha digital, coberturas da apólice e aviso de renovação, nesta ordem, depois do P1 completo |

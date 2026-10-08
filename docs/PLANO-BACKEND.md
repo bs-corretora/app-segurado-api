@@ -29,6 +29,9 @@ A BS Labs liberou Node.js, Express, React e Next.js. A escolha foi:
 | Banco, autenticação e arquivos | Supabase (PostgreSQL) | `app-segurado-api` (`supabase/`) |
 | Aplicativo do segurado | React Native com Expo | `app-segurado-mobile` |
 
+Quem cuida do back-end cuida também do painel administrativo e da página pública (estão no
+mesmo projeto) e da conta do Supabase Cloud.
+
 Motivos:
 
 - **Um projeto só para tudo que é web.** API, painel e página pública ficam no mesmo Next.js:
@@ -268,7 +271,12 @@ não chega a quem desativou marketing.
 ### Etapa 7 — Documentação e deploy
 
 - `/api/docs` (Swagger UI) e `/api/openapi.json` gerados dos schemas Zod.
-- Projeto no Supabase Cloud com as migrations aplicadas.
+- Projeto no Supabase Cloud, criado pelo responsável do back-end, com as migrations aplicadas
+  (`supabase link` + `supabase db push`). Os outros integrantes entram como membros da
+  organização no Supabase, sem compartilhar login.
+- Chaves do Supabase (`SUPABASE_SERVICE_ROLE_KEY` principalmente) vão só para as variáveis de
+  ambiente do Render e para o `.env` local de quem precisa, passadas por mensagem privada.
+  Nunca em commit, issue ou grupo aberto.
 - API no Render a partir do `Dockerfile`.
 - README com os usuários de teste do seed.
 
