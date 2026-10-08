@@ -1,23 +1,30 @@
 # App do Segurado — API e banco
 
-Back-end do App do Segurado (BS Seguros): API REST, painel administrativo web e banco de dados.
+Back-end do App do Segurado (BS Seguros): API REST e banco de dados. O painel administrativo web é
+um projeto Next.js à parte, que consome esta API.
 
 > Projeto em construção. Esta página descreve a estrutura combinada; os comandos de execução
 > passam a valer à medida que o código for entrando.
+
+## Documentação
+
+- [Especificação técnica](docs/especificacao-tecnica.md): requisitos, modelo de dados, API e segurança.
+- [Plano de implementação do back-end](docs/PLANO-BACKEND.md): ordem de construção e contrato com o app.
 
 ## Stack
 
 | Camada | Tecnologia |
 |---|---|
 | Linguagem | TypeScript, Node.js 22 |
-| API e painel administrativo | Next.js (Route Handlers em `app/api/v1/**`) |
+| API | Express (rotas em `src/routes/v1`) |
+| Painel administrativo web | Next.js, em projeto separado, consumindo esta API |
 | Banco de dados | PostgreSQL gerenciado pelo Supabase |
 | Autenticação | Supabase Auth (e-mail e senha), tokens em cookie HttpOnly emitido pela API |
 | Arquivos | Supabase Storage, bucket privado `apolices` |
 | Validação | Zod |
 | Documentação da API | OpenAPI 3 gerado dos schemas Zod, Swagger UI |
 | Tarefas agendadas | pg_cron |
-| IA | Google Gemini API, isolada em `lib/ai/client.ts` |
+| IA | Google Gemini API, isolada em `src/ai/client.ts` |
 | Migrations e seed | Supabase CLI (`supabase/migrations/*.sql`, `supabase/seed.sql`) |
 | Contêiner e deploy | Docker; Render |
 
@@ -25,8 +32,8 @@ Back-end do App do Segurado (BS Seguros): API REST, painel administrativo web e 
 
 ```text
 App mobile ─┐
-            ├── HTTPS/JSON ──> API Next.js ── service_role ──> Supabase
-Admin web ──┘                  (contêiner)                     (PostgreSQL, Auth, Storage)
+            ├── HTTPS/JSON ──> API Express ── service_role ──> Supabase
+Admin web ──┘   (Next.js)       (contêiner)                     (PostgreSQL, Auth, Storage)
 ```
 
 - Os clientes acessam somente a API. Nenhuma chave do Supabase vai para o app.
@@ -37,12 +44,13 @@ Admin web ──┘                  (contêiner)                     (PostgreSQ
 
 | Diretório | Responsabilidade |
 |---|---|
-| `app/api/v1/**/route.ts` | Rotas da API: validação com Zod e chamada ao serviço |
-| `app/admin/**` | Painel administrativo web |
-| `lib/services` | Regras de negócio |
-| `lib/supabase` | Cliente Supabase do lado do servidor |
-| `lib/security` | Sessão por cookie, CORS e rate limit |
-| `lib/ai` | Cliente do LLM e prompts versionados (`lib/ai/prompts/`) |
+| `src/app.ts` | Montagem do Express: middlewares globais e rotas |
+| `src/server.ts` | Inicialização do servidor HTTP |
+| `src/routes/v1` | Rotas da API: validação com Zod e chamada ao serviço |
+| `src/services` | Regras de negócio |
+| `src/supabase` | Cliente Supabase do lado do servidor |
+| `src/security` | Sessão por cookie, CORS e rate limit (middlewares) |
+| `src/ai` | Cliente do LLM e prompts versionados (`src/ai/prompts/`) |
 | `supabase/migrations` | Migrations SQL |
 | `supabase/seed.sql` | Dados fictícios de desenvolvimento |
 
