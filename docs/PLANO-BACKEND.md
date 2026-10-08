@@ -19,10 +19,33 @@ Leitura obrigatória na especificação:
 
 Ferramentas na máquina: Node.js 22, Docker Desktop, Supabase CLI e Git.
 
-Decisões já tomadas que valem para todo o código:
+### 1.1 Por que esta stack
 
-- **Node.js 22 + Express, em TypeScript `strict`.** O painel administrativo é um projeto
-  Next.js separado que consome esta API; ele não fica neste repositório.
+A BS Labs liberou Node.js, Express, React e Next.js. A escolha foi:
+
+| Parte | Tecnologia | Repositório |
+|---|---|---|
+| API, painel administrativo e página pública de indicação | Next.js (TypeScript) | `app-segurado-api` |
+| Banco, autenticação e arquivos | Supabase (PostgreSQL) | `app-segurado-api` (`supabase/`) |
+| Aplicativo do segurado | React Native com Expo | `app-segurado-mobile` |
+
+Motivos:
+
+- **Um projeto só para tudo que é web.** API, painel e página pública ficam no mesmo Next.js:
+  um `package.json`, um contêiner, um deploy no Render. Com Express na API, o painel precisaria
+  de um segundo projeto, um segundo deploy e um proxy entre os dois.
+- **Cookies de sessão funcionam sem ajuste.** A sessão usa cookies `SameSite=Strict`
+  (seção 7.1 da especificação). Painel e API no mesmo domínio recebem o cookie normalmente; em
+  domínios separados no Render, o navegador não o enviaria.
+- **O painel continua sendo React.** As telas do Next.js são componentes React, a mesma base do
+  React Native do app.
+- **Express não entra.** Ele resolveria só a API, e as rotas do Next.js (Route Handlers) cobrem
+  o que a especificação pede: validação com Zod, cookies, CORS e rate limit.
+
+### 1.2 Decisões que valem para todo o código
+
+
+- **TypeScript em modo `strict`**, Next.js com App Router.
 - **JSON da API em `snake_case`**, com os mesmos nomes das colunas do banco (`data_nascimento`,
   `fim_vigencia`). Evita uma camada de conversão e mantém o contrato igual ao modelo de dados.
 - **Datas trafegam em ISO 8601** (`2026-10-10` para `date`, `2026-10-03T14:20:00-03:00` para
@@ -161,21 +184,13 @@ Cada etapa termina em algo que roda e pode ser conferido. Não avançar com a an
 
 ### Etapa 0 — Esqueleto do projeto
 
-- `npm init` com TypeScript (`strict`), ESLint e `tsx` para desenvolvimento (`npm run dev` com
-  recarga automática).
-- Dependências base: `express`, `zod`, `cookie-parser`, `cors`, `helmet`,
-  `rate-limiter-flexible`, `@supabase/supabase-js`, `@asteasolutions/zod-to-openapi`,
-  `swagger-ui-express`.
-- `src/app.ts` monta o Express (JSON, cookies, CORS, helmet, rotas em `/api/v1`, tratador de
-  erro único); `src/server.ts` só sobe o servidor. Separados, o `app` pode ser testado sem
-  abrir porta.
-- `npm run build` compila para `dist/`; `npm start` roda `node dist/server.js`.
+- `npx create-next-app@latest` com TypeScript, App Router e ESLint, na raiz deste repositório.
+- `next.config` com `output: 'standalone'`.
 - `supabase init` (cria a pasta `supabase/`).
-- `Dockerfile` multi-stage (build com `tsc`, runtime `node:22-alpine` só com dependências de
-  produção, usuário não root, porta 3000) e
+- `Dockerfile` multi-stage (`node:22-alpine`, usuário não root, porta 3000) e
   `docker-compose.yml` da API.
 - Utilitários base: leitura e validação do `.env` com Zod (a API não sobe com variável
-  faltando), middleware de erro no formato padrão e paginação.
+  faltando), resposta de erro padrão e paginação.
 - `GET /api/v1/health` consultando o banco.
 
 **Pronto quando:** `supabase start` e `docker compose up --build` sobem do zero e
@@ -202,7 +217,7 @@ chave `anon` em qualquer tabela volta vazia.
 - `POST /auth/cadastro`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/esqueci-senha`,
   `GET` e `PATCH /me`.
 - Cookies conforme a seção 7.1: os tokens nunca aparecem no corpo da resposta.
-- Middleware Express que valida o JWT e coloca `perfil_id` e `papel` em `req`.
+- Middleware que valida o JWT e entrega `perfil_id` e `papel` às rotas.
 - Rate limit (seção 7.2) e CORS (seção 7.3).
 - Validações do cadastro da seção 6.3: CPF com dígito verificador, 18 anos, senha com no
   mínimo 8 caracteres, aceite dos termos, conflito com mensagem genérica.
@@ -225,7 +240,8 @@ preenchidas só com dados reais da API, e o usuário A não enxerga nada do usu�
 - `POST /sinistros` (grava o evento `ABERTO` na mesma transação), `GET /sinistros`,
   `GET /sinistros/{id}` com linha do tempo.
 - `POST` e `GET /cotacoes`.
-- `GET /indicacoes/link`, `GET /indicacoes`, `POST /public/indicacoes/{codigo}`.
+- `GET /indicacoes/link`, `GET /indicacoes`, `POST /public/indicacoes/{codigo}` e a página
+  pública `app/indicacao/[codigo]` com o formulário do indicado.
 - `POST /dispositivos`, `DELETE /dispositivos/{token}`.
 
 **Pronto quando:** abrir um sinistro devolve o protocolo e ele aparece na lista como
@@ -235,7 +251,7 @@ preenchidas só com dados reais da API, e o usuário A não enxerga nada do usu�
 
 - Rotas `/admin/*` da seção 6.10, todas exigindo papel `ADMIN`.
 - Mudança de status de sinistro e resposta de cotação gravam a `notificacao` do segurado.
-- O painel administrativo (Next.js, projeto separado) consome essas rotas. Ver seção 4.1.
+- Telas do painel administrativo em `app/admin/` consumindo essas rotas.
 
 **Pronto quando:** o administrador muda um sinistro para `EM_ANALISE` e o segurado vê a
 notificação "Seu sinistro mudou de status" e o novo evento na linha do tempo.
@@ -260,7 +276,7 @@ não chega a quem desativou marketing.
 carrega o Início.
 
 Depois do P1: camada de IA (assistente do segurado e triagem de sinistro, com os prompts
-versionados em `src/ai/prompts/`) e itens P2 da especificação.
+versionados em `lib/ai/prompts/`) e itens P2 da especificação.
 
 ## 4. Como o front pode andar em paralelo
 
@@ -270,17 +286,6 @@ versionados em `src/ai/prompts/`) e itens P2 da especificação.
 3. Cada etapa seguinte libera um grupo de telas. Avisar no PR quais rotas ficaram disponíveis.
 
 Mudança no formato de uma resposta já publicada se combina com o front antes do merge.
-
-### 4.1 Painel administrativo e página pública (Next.js)
-
-- O painel e a página pública de indicação ficam num projeto Next.js separado.
-  **[EM ABERTO]** Repositório próprio (`app-segurado-admin`) ou junto do repositório do app.
-- O Next.js encaminha `/api/*` para a API com `rewrites` no `next.config`. Para o navegador,
-  painel e API ficam no mesmo domínio, e os cookies `SameSite=Strict` funcionam. Sem isso,
-  com painel e API em subdomínios diferentes do Render (`*.onrender.com` conta como sites
-  diferentes), o navegador não envia o cookie e o login do painel falha.
-- Nessa configuração, `CORS_ALLOWED_ORIGINS` só precisa da origem do painel em
-  desenvolvimento.
 
 ## 5. Decisões tiradas do protótipo
 
@@ -296,7 +301,7 @@ refletidos na especificação; mudar algum deles se combina com o front antes.
 | Sinistro | Protocolo `SIN-2026-000123` | Formato `SIN-AAAA-NNNNNN` (ano da abertura + sequência de 6 dígitos), gerado no banco |
 | Apólices | Número `AU-2026-…`, `VI-2026-…` | Formato `PP-AAAA-NNNNNN`, com prefixo por produto: `AU`, `RE`, `VI`, `EM`. Gerado no seed |
 
-A troca de Spring Boot foi aceita pela BS Labs: API em Node.js com Express e painel em Next.js.
+
 
 ## 6. Regras de trabalho no repositório
 
