@@ -5,6 +5,11 @@ Back-end do App do Segurado (BS Seguros): API REST, painel administrativo web e 
 > Projeto em construção. Esta página descreve a estrutura combinada; os comandos de execução
 > passam a valer à medida que o código for entrando.
 
+## Documentação
+
+- [Especificação técnica](docs/especificacao-tecnica.md): requisitos, modelo de dados, API e segurança.
+- [Plano de implementação do back-end](docs/PLANO-BACKEND.md): ordem de construção e contrato com o app.
+
 ## Stack
 
 | Camada | Tecnologia |
