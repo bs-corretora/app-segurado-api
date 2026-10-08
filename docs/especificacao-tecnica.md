@@ -45,13 +45,14 @@ Documento de Requisitos emitido pela BS Labs (RF-01 a RF-08 e RNF-01 a RNF-03).
 | Camada | Tecnologia |
 |---|---|
 | Linguagem | TypeScript, Node.js 22 |
-| API e painel administrativo | Next.js (Route Handlers em `app/api/v1/**`) |
+| API | Node.js com Express (rotas em `src/routes/v1`) |
+| Painel administrativo e página pública de indicação | Next.js, projeto separado que consome a API |
 | Aplicativo mobile | React Native |
 | Banco de dados | PostgreSQL gerenciado pelo Supabase |
 | Autenticação | Supabase Auth (e-mail e senha); tokens em cookie HttpOnly emitido pela API |
 | Armazenamento de arquivos | Supabase Storage, bucket privado `apolices` |
 | Validação de entrada | Zod |
-| Documentação da API | OpenAPI 3 gerado dos schemas Zod (`@asteasolutions/zod-to-openapi`), Swagger UI |
+| Documentação da API | OpenAPI 3 gerado dos schemas Zod (`@asteasolutions/zod-to-openapi`), Swagger UI (`swagger-ui-express`) |
 | Rate limit | rate-limiter-flexible |
 | Tarefas agendadas | pg_cron |
 | Notificação push | Expo Push Notifications **[EM ABERTO: depende do uso de Expo no app]** |
@@ -62,8 +63,8 @@ Documento de Requisitos emitido pela BS Labs (RF-01 a RF-08 e RNF-01 a RNF-03).
 
 ```text
 App mobile ─┐
-            ├── HTTPS/JSON ──> API Next.js ── service_role ──> Supabase
-Admin web ──┘                  (contêiner)                     (PostgreSQL, Auth, Storage)
+            ├── HTTPS/JSON ──> API Express ── service_role ──> Supabase
+Admin web ──┘   (Next.js)       (contêiner)                     (PostgreSQL, Auth, Storage)
 Web pública (indicação) ──────────┘
 ```
 
@@ -79,10 +80,14 @@ Web pública (indicação) ──────────┘
 
 | Diretório | Responsabilidade |
 |---|---|
-| `app/api/v1/**/route.ts` | Rotas; validação de entrada com Zod e delegação ao serviço |
-| `lib/services` | Regras de negócio |
-| `lib/supabase` | Cliente Supabase do lado do servidor |
-| `lib/security` | Sessão por cookie, CORS e rate limit |
+| `src/routes/v1` | Rotas (Express Router); validação de entrada com Zod e delegação ao serviço |
+| `src/services` | Regras de negócio |
+| `src/supabase` | Cliente Supabase do lado do servidor |
+| `src/security` | Middlewares de sessão por cookie, CORS e rate limit |
+
+O painel administrativo (Next.js) é servido no mesmo domínio da API por proxy reverso
+(`rewrites` do Next.js para `/api/*`). Isso mantém válidos os cookies `SameSite=Strict` no
+navegador: com API e painel em domínios diferentes, o navegador não enviaria os cookies.
 
 ## 3. Funcionalidades
 
@@ -523,7 +528,7 @@ Todas as rotas exigem o papel `ADMIN`; demais papéis recebem `403`.
 
 | Rota | Conteúdo |
 |---|---|
-| `/api/docs` | Swagger UI |
+| `/api/docs` | Swagger UI (`swagger-ui-express`) |
 | `/api/openapi.json` | Especificação OpenAPI 3 |
 
 A especificação é gerada a partir dos schemas Zod usados na validação das rotas. Em produção,
@@ -595,7 +600,7 @@ PostgreSQL (suportado pela mesma biblioteca).
 
 | Componente | Desenvolvimento | Produção |
 |---|---|---|
-| API | Imagem Docker multi-stage: build Next.js `output: 'standalone'`; runtime `node:22-alpine`, usuário não root, porta 3000 | Mesma imagem, em provedor com suporte a contêiner **[EM ABERTO]** |
+| API | Imagem Docker multi-stage: build TypeScript (`tsc`) para `dist/`; runtime `node:22-alpine` só com dependências de produção, usuário não root, porta 3000 | Mesma imagem, em provedor com suporte a contêiner **[EM ABERTO]** |
 | Banco, Auth, Storage | `supabase start` (Supabase CLI sobre Docker), com migrations e seed | Supabase Cloud **[EM ABERTO]** |
 
 Inicialização em desenvolvimento: `supabase start` seguido de `docker compose up --build`.
@@ -624,7 +629,7 @@ Inicialização em desenvolvimento: `supabase start` seguido de `docker compose 
 
 | Item do Documento de Requisitos | Implementação adotada |
 |---|---|
-| API em Java com Spring Boot | API em Node.js com Next.js |
+| API em Java com Spring Boot | API em Node.js com Express; painel administrativo em Next.js (troca aceita pela BS Labs) |
 | PostgreSQL | PostgreSQL gerenciado pelo Supabase (aderente) |
 | Backend e banco conteinerizados em desenvolvimento e produção | Aderente em desenvolvimento; em produção, o banco é serviço gerenciado. Alternativa aderente: Supabase self-hosted via Docker Compose |
 
@@ -632,7 +637,7 @@ Inicialização em desenvolvimento: `supabase start` seguido de `docker compose 
 
 | # | Item | Proposta |
 |---|---|---|
-| 1 | Aceite, pela BS Labs, da troca de Spring Boot por Next.js | Formalizar antes do início da implementação |
+| 1 | Aceite, pela BS Labs, da troca de Spring Boot | **Resolvido:** aceite dado; API em Node.js com Express e painel em Next.js |
 | 2 | Conteinerização do banco em produção | Supabase Cloud; self-hosted se exigido |
 | 3 | Regra de vínculo entre cadastro e apólices | CPF e número de apólice do titular |
 | 4 | Identificador de login | E-mail; CPF mantido no perfil |
