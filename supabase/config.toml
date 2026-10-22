@@ -118,6 +118,13 @@ enabled = true
 # The maximum file size allowed (e.g. "5MB", "500KB").
 file_size_limit = "50MiB"
 
+# Bucket privado das apólices; no ambiente local os PDFs de exemplo sobem junto com o `supabase start`
+[storage.buckets.apolices]
+public = false
+file_size_limit = "10MiB"
+allowed_mime_types = ["application/pdf"]
+objects_path = "./seed/apolices"
+
 # Uncomment to configure local storage buckets
 # [storage.buckets.images]
 # public = false

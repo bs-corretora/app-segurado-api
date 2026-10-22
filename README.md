@@ -96,6 +96,29 @@ Para desligar: `docker compose down` e `supabase stop`.
 | `supabase db reset` | Recria o banco local do zero com migrations e seed |
 | `supabase status` | URLs e chaves do Supabase local |
 
+## Banco e dados de teste
+
+As migrations ficam em `supabase/migrations/` (um arquivo por tabela, na ordem das dependências da
+seção 5.3 da especificação) e o seed em `supabase/seed.sql`. `supabase db reset` recria tudo.
+Os PDFs de exemplo das apólices estão em `supabase/seed/apolices/` e sobem para o bucket privado
+`apolices` no `supabase start`.
+
+Todas as tabelas têm RLS ligado e nenhuma policy: com a chave `anon` qualquer consulta volta vazia.
+Só a API, com a `service_role`, lê e grava.
+
+Usuários de teste (senha `Senha@123` para todos):
+
+| E-mail | Papel | CPF | Para testar |
+|---|---|---|---|
+| `admin@bsseguros.com.br` | ADMIN | 11144477735 | Painel administrativo |
+| `maria.souza@email.com` | SEGURADO | 52948220084 | 3 apólices, sinistro em análise, cotação respondida |
+| `joao.silva@email.com` | SEGURADO | 22334455628 | Aniversário sempre na data do `db reset` (RF-08), apólice vencida |
+| `ana.oliveira@email.com` | SEGURADO | 33445566739 | Apólice empresarial, sem aceite de marketing |
+| `carlos.pereira@email.com` | SEGURADO | 44556677840 | Sinistro concluído, renovação de cotação pendente |
+| `fernanda.costa@email.com` | SEGURADO | 55667788950 | Cliente nova, sem histórico |
+
+Para o fluxo de vínculo no cadastro existe a apólice `AU-2026-000999` do CPF `99887766593`, sem conta.
+
 ## Variáveis de ambiente
 
 Ver `.env.example`. O repositório nunca recebe o arquivo `.env` com valores.
