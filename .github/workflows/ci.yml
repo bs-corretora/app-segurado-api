@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checagens:
+    name: Lint, tipos e build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      # O build não precisa de .env: as variáveis só são validadas em runtime
+      - run: npm run build
+
+  docker:
+    name: Imagem Docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t app-segurado-api:ci .
+
+  banco:
+    name: Migrations e seed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          # A 2.107 não lê o config.toml atual (orioledb_version)
+          version: 2.121.0
+      # Sobe só o Postgres do Supabase e aplica supabase/migrations + supabase/seed.sql
+      - run: supabase db start
+      - name: Seed carregado e RLS fechando a chave anon
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          DECLARE
+              n INT;
+          BEGIN
+              SELECT count(*) INTO n FROM public.perfil;
+              IF n <> 6 THEN RAISE EXCEPTION 'seed: esperava 6 perfis, veio %', n; END IF;
+              SELECT count(*) INTO n FROM auth.users
+                  WHERE encrypted_password = extensions.crypt('Senha@123', encrypted_password);
+              IF n <> 6 THEN RAISE EXCEPTION 'seed: senha de teste não confere em % usuários', 6 - n; END IF;
+          END $$;
+
+          SET ROLE anon;
+          DO $$
+          DECLARE
+              t TEXT;
+              n INT;
+          BEGIN
+              FOREACH t IN ARRAY ARRAY['perfil', 'apolice', 'contato_assistencia', 'sinistro', 'sinistro_evento',
+                                       'cotacao', 'indicacao', 'notificacao', 'dispositivo'] LOOP
+                  EXECUTE format('SELECT count(*) FROM public.%I', t) INTO n;
+                  IF n <> 0 THEN RAISE EXCEPTION 'RLS: anon enxerga % linhas em %', n, t; END IF;
+              END LOOP;
+          END $$;
+          SQL

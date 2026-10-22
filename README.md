@@ -1,4 +1,5 @@
 # App do Segurado — API e banco
+[![CI](https://github.com/bs-corretora/app-segurado-api/actions/workflows/ci.yml/badge.svg)](https://github.com/bs-corretora/app-segurado-api/actions/workflows/ci.yml)
 
 Back-end do App do Segurado (BS Seguros): API REST, painel administrativo web e banco de dados.
 
