@@ -43,3 +43,14 @@ export function erroValidacao(error: z.ZodError) {
     : 'entrada inválida';
   return erro(400, 'VALIDACAO', mensagem, { campos });
 }
+
+/** Falha inesperada do banco/Storage: loga e responde 503 (detalhe só no log). */
+export function falhaBanco(rota: string, e: unknown) {
+  console.error(`[${rota}]`, e);
+  return erro(503, 'INDISPONIVEL', 'Banco de dados indisponível');
+}
+
+/** 404 padrão: registro inexistente ou de outro usuário (seção 6.1). */
+export function naoEncontrado(oQue: string) {
+  return erro(404, 'NAO_ENCONTRADO', `${oQue} não encontrada`);
+}
