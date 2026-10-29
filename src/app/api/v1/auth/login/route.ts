@@ -5,9 +5,10 @@ import { ok, erro, erroValidacao } from '@/lib/api-response';
 import { gravarSessao } from '@/lib/security/cookies';
 import { ipDe, limitar } from '@/lib/security/rate-limit';
 import { loginSchema } from '@/lib/schemas/conta';
+import { comLog } from '@/lib/http/log';
 
 // POST /api/v1/auth/login — pública (seção 6.3). Rate limit: 5/min por IP (7.2).
-export async function POST(req: NextRequest) {
+async function post(req: NextRequest) {
   const bloqueio = await limitar('login', ipDe(req));
   if (bloqueio) return bloqueio;
 
@@ -34,3 +35,5 @@ export async function POST(req: NextRequest) {
   // Tokens só em cookie, nunca no corpo (seção 7.1).
   return gravarSessao(ok({ id: data.user.id, email: data.user.email }), data.session);
 }
+
+export const POST = comLog(post);

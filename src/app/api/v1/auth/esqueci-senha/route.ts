@@ -3,10 +3,11 @@ import { supabaseAuth } from '@/lib/supabase/server';
 import { erro, erroValidacao } from '@/lib/api-response';
 import { ipDe, limitar } from '@/lib/security/rate-limit';
 import { esqueciSenhaSchema } from '@/lib/schemas/conta';
+import { comLog } from '@/lib/http/log';
 
 // POST /api/v1/auth/esqueci-senha — pública (seção 6.3). Rate limit: 3/min por IP (7.2).
 // Responde 204 sempre que a entrada é válida: não revela se o e-mail tem conta.
-export async function POST(req: NextRequest) {
+async function post(req: NextRequest) {
   const bloqueio = await limitar('esqueciSenha', ipDe(req));
   if (bloqueio) return bloqueio;
 
@@ -21,3 +22,5 @@ export async function POST(req: NextRequest) {
 
   return new NextResponse(null, { status: 204 });
 }
+
+export const POST = comLog(post);

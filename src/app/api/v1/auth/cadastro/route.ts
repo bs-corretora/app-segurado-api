@@ -5,10 +5,11 @@ import { gravarSessao } from '@/lib/security/cookies';
 import { ipDe, limitar } from '@/lib/security/rate-limit';
 import { cadastroSchema } from '@/lib/schemas/conta';
 import { cadastrar } from '@/lib/services/cadastro';
+import { comLog } from '@/lib/http/log';
 
 // POST /api/v1/auth/cadastro — pública (seção 6.3). Rate limit: 3/min por IP (7.2).
 // Cria conta e perfil, vincula apólices e já inicia a sessão.
-export async function POST(req: NextRequest) {
+async function post(req: NextRequest) {
   const bloqueio = await limitar('cadastro', ipDe(req));
   if (bloqueio) return bloqueio;
 
@@ -48,3 +49,5 @@ export async function POST(req: NextRequest) {
     return erro(503, 'INDISPONIVEL', 'Não foi possível concluir o cadastro agora');
   }
 }
+
+export const POST = comLog(post);

@@ -3,9 +3,10 @@ import { ok, erroValidacao, falhaBanco } from '@/lib/api-response';
 import { exigirSessao } from '@/lib/security/sessao';
 import { contatosQuerySchema } from '@/lib/schemas/app';
 import { listarContatos } from '@/lib/services/leitura';
+import { comLog } from '@/lib/http/log';
 
 // GET /api/v1/contatos?tipo=ASSISTENCIA_24H|SINISTRO (seção 6.6).
-export async function GET(req: NextRequest) {
+async function get(req: NextRequest) {
   const sessao = await exigirSessao(req);
   if (sessao instanceof Response) return sessao;
 
@@ -20,3 +21,5 @@ export async function GET(req: NextRequest) {
     return falhaBanco('contatos', e);
   }
 }
+
+export const GET = comLog(get);
