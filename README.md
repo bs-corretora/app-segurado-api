@@ -36,16 +36,39 @@ Admin web ──┘                  (contêiner)                     (PostgreSQ
 
 ## Estrutura
 
-| Diretório | Responsabilidade |
+| Caminho | Responsabilidade |
 |---|---|
-| `src/app/api/v1/**/route.ts` | Rotas da API: validação com Zod e chamada ao serviço |
-| `src/app/admin/**` | Painel administrativo web |
-| `src/lib/services` | Regras de negócio |
+| `src/app/api/v1/**/route.ts` | Rotas da API: lê a entrada, valida com Zod e chama o serviço |
+| `src/app/api/docs`, `src/app/api/openapi.json` | Swagger UI e especificação OpenAPI |
+| `src/proxy.ts` | CORS das rotas `/api` (o antigo `middleware` no Next 16) |
+| `src/lib/services` | Regras de negócio e consultas ao banco |
+| `src/lib/schemas` | Schemas Zod das entradas (usados também no OpenAPI) |
+| `src/lib/security` | Sessão por cookie (`exigirSessao`), cookies e rate limit |
 | `src/lib/supabase` | Cliente Supabase do lado do servidor |
-| `src/lib/security` | Sessão por cookie, CORS e rate limit |
-| `src/lib/ai` | Cliente do LLM e prompts versionados (`src/lib/ai/prompts/`) |
-| `supabase/migrations` | Migrations SQL |
-| `supabase/seed.sql` | Dados fictícios de desenvolvimento |
+| `src/lib/http`, `src/lib/api-response.ts` | Paginação e formato padrão de resposta e erro |
+| `src/lib/env.ts` | Leitura e validação das variáveis de ambiente |
+| `supabase/migrations` | Migrations SQL, uma por tabela |
+| `supabase/seed.sql`, `supabase/seed/apolices` | Dados fictícios e PDFs de exemplo |
+| `docs/` | Especificação, plano do back-end e [diagrama do banco](docs/banco-de-dados.md) |
+
+Ainda não existem (etapas seguintes): `src/app/admin/**` (painel, Etapa 5) e `src/lib/ai`
+(assistente e triagem com IA, depois do P1).
+
+## Andamento
+
+| Etapa | Issue | Situação |
+|---|---|---|
+| 0. Esqueleto (Next, Docker, health) | #2 | pronta |
+| 1. Banco (migrations, seed, Storage) | #3 | pronta |
+| 2. Autenticação e sessão | #4 | pronta |
+| 3. Leitura do app (dashboard, apólices, contatos, notificações) | #5 | pronta |
+| 4. Escrita do app (sinistro, cotação, indicação, dispositivos) | #6 | a fazer |
+| 5. Administração (rotas `/admin` e painel) | #7 | a fazer |
+| 6. Jobs e push (aniversário, Expo Push, campanhas) | #8 | a fazer |
+| 7. Documentação e deploy | #9 | Swagger e diagrama prontos; falta Supabase Cloud + Render |
+| CI (lint, tipos, build, Docker, banco) | #14 | pronta |
+
+As rotas prontas estão todas no Swagger (`/api/docs`), com exemplo.
 
 ## Como rodar (desenvolvimento)
 
