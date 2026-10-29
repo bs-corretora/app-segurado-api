@@ -1,19 +1,10 @@
 import { type NextRequest } from 'next/server';
-import { z } from 'zod';
 import { supabaseAuth } from '@/lib/supabase/server';
 import { authIndisponivel } from '@/lib/supabase/erros';
 import { ok, erro, erroValidacao } from '@/lib/api-response';
 import { gravarSessao } from '@/lib/security/cookies';
 import { ipDe, limitar } from '@/lib/security/rate-limit';
-
-const loginSchema = z.object({
-  email: z
-    .string({ error: 'e-mail obrigatório' })
-    .trim()
-    .toLowerCase()
-    .pipe(z.email('e-mail inválido')),
-  senha: z.string({ error: 'senha obrigatória' }).min(1, 'senha obrigatória'),
-});
+import { loginSchema } from '@/lib/schemas/conta';
 
 // POST /api/v1/auth/login — pública (seção 6.3). Rate limit: 5/min por IP (7.2).
 export async function POST(req: NextRequest) {
