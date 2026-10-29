@@ -1,0 +1,112 @@
+erDiagram
+    AUTH_USERS ||--|| PERFIL : "conta de acesso"
+    PERFIL |o--o{ APOLICE : "possui (vínculo no cadastro)"
+    PERFIL ||--o{ SINISTRO : abre
+    APOLICE ||--o{ SINISTRO : "referente a"
+    SINISTRO ||--|{ SINISTRO_EVENTO : "histórico de status"
+    PERFIL |o--o{ SINISTRO_EVENTO : "autor (admin)"
+    PERFIL ||--o{ COTACAO : solicita
+    PERFIL ||--o{ INDICACAO : indica
+    PERFIL ||--o{ NOTIFICACAO : recebe
+    PERFIL ||--o{ DISPOSITIVO : "usa (push)"
+
+    AUTH_USERS {
+        uuid id PK
+        varchar email UK "gerido pelo Supabase Auth"
+        varchar encrypted_password "bcrypt"
+    }
+    PERFIL {
+        uuid id PK,FK "= auth.users.id"
+        varchar(11) cpf UK "dígito verificador validado"
+        varchar(120) nome
+        varchar(20) telefone "opcional"
+        date data_nascimento
+        date cliente_desde "tempo de casa (RF-07)"
+        varchar(20) papel "SEGURADO | ADMIN"
+        varchar(12) codigo_indicacao UK
+        boolean aceita_marketing
+        timestamptz termos_aceitos_em
+        timestamptz criado_em
+    }
+    APOLICE {
+        uuid id PK
+        varchar(11) cpf_titular
+        uuid perfil_id FK "nulo até o vínculo"
+        varchar(30) numero UK "AU|RE|VI|EM-AAAA-NNNNNN"
+        varchar(30) produto "AUTO | RESIDENCIAL | VIDA | EMPRESARIAL"
+        varchar(20) status "ATIVA | VENCIDA | CANCELADA"
+        date inicio_vigencia
+        date fim_vigencia "maior que o início"
+        numeric premio
+        varchar(255) pdf_caminho "bucket privado apolices"
+    }
+    CONTATO_ASSISTENCIA {
+        uuid id PK
+        varchar(20) tipo "ASSISTENCIA_24H | SINISTRO"
+        varchar(30) produto "nulo = todos"
+        varchar(80) rotulo
+        varchar(20) telefone
+        varchar(20) whatsapp
+        boolean ativo
+    }
+    SINISTRO {
+        uuid id PK
+        uuid perfil_id FK
+        uuid apolice_id FK "do mesmo perfil"
+        varchar(20) protocolo UK "SIN-AAAA-NNNNNN, gerado no banco"
+        varchar(30) tipo "COLISAO | ROUBO | INCENDIO | DANO_ELETRICO | OUTROS"
+        timestamptz data_ocorrencia "não futura"
+        varchar(200) local
+        text descricao
+        varchar(20) status "ABERTO | EM_ANALISE | CONCLUIDO"
+        timestamptz criado_em
+        timestamptz atualizado_em
+    }
+    SINISTRO_EVENTO {
+        uuid id PK
+        uuid sinistro_id FK
+        varchar(20) status "ABERTO | EM_ANALISE | CONCLUIDO"
+        text comentario
+        uuid autor_id FK "nulo = sistema"
+        timestamptz criado_em
+    }
+    COTACAO {
+        uuid id PK
+        uuid perfil_id FK
+        varchar(30) produto
+        varchar(20) motivo "NOVO | RENOVACAO"
+        jsonb dados "campos do formulário"
+        varchar(20) status "RECEBIDA | EM_ANALISE | RESPONDIDA"
+        text resposta
+        numeric valor_estimado
+        timestamptz respondida_em
+        timestamptz criado_em
+    }
+    INDICACAO {
+        uuid id PK
+        uuid indicador_id FK
+        varchar(120) nome
+        varchar(20) telefone
+        varchar(160) email
+        varchar(20) status "NOVA | CONTATADA | CONVERTIDA"
+        timestamptz criado_em
+    }
+    NOTIFICACAO {
+        uuid id PK
+        uuid perfil_id FK
+        varchar(20) tipo "MARKETING | ANIVERSARIO | SISTEMA"
+        varchar(120) titulo
+        text mensagem
+        varchar(20) destino_tipo "SINISTRO | COTACAO | APOLICE"
+        uuid destino_id "registro de destino"
+        timestamptz lida_em
+        timestamptz push_enviado_em
+        timestamptz criado_em
+    }
+    DISPOSITIVO {
+        uuid id PK
+        uuid perfil_id FK
+        varchar(255) push_token UK
+        varchar(10) plataforma "ANDROID | IOS"
+        timestamptz atualizado_em
+    }

@@ -86,6 +86,19 @@ Confira em `http://localhost:3000/api/v1/health`. A resposta esperada é
 
 Para desligar: `docker compose down` e `supabase stop`.
 
+### Testar as rotas no navegador (Swagger)
+
+Com a API rodando, abra `http://localhost:3000/api/docs`. Todas as rotas aparecem com exemplo
+pronto e o botão **Try it out** já vem ligado:
+
+1. `POST /auth/login` → **Execute** (o exemplo já é a Maria, senha `Senha@123`). A sessão fica
+   no cookie do navegador.
+2. Qualquer rota com cadeado (`/me`, `/dashboard`, `/apolices`, `/notificacoes`...) → **Execute**.
+3. `POST /auth/logout` encerra; as rotas com cadeado voltam a responder `401`.
+
+O Swagger fica ligado no `npm run dev`. No `docker compose` (que roda como produção) ele só liga
+com `API_DOCS=true` no `.env`. A especificação crua está em `/api/openapi.json`.
+
 ### Comandos úteis
 
 | Comando | O que faz |
@@ -98,6 +111,9 @@ Para desligar: `docker compose down` e `supabase stop`.
 | `supabase status` | URLs e chaves do Supabase local |
 
 ## Banco e dados de teste
+
+Diagrama entidade-relacionamento, relacionamentos e regras do banco: [`docs/banco-de-dados.md`](docs/banco-de-dados.md)
+(imagem em [`docs/der.png`](docs/der.png)).
 
 As migrations ficam em `supabase/migrations/` (um arquivo por tabela, na ordem das dependências da
 seção 5.3 da especificação) e o seed em `supabase/seed.sql`. `supabase db reset` recria tudo.
@@ -132,6 +148,7 @@ Ver `.env.example`. O repositório nunca recebe o arquivo `.env` com valores.
 | `COOKIE_SECURE` | não | Padrão `true`; `false` só em desenvolvimento sobre HTTP |
 | `SUPABASE_JWT_SECRET` | não | Só se o projeto usar segredo HS256 |
 | `INTERNAL_API_KEY` | não | Rota interna de push (Etapa 6) |
+| `API_DOCS` | não | `true`/`false` liga ou desliga `/api/docs`; vazio = ligado só fora de produção |
 
 Variável obrigatória faltando: a API não sobe e lista o que falta. Variável vazia conta como
 ausente.

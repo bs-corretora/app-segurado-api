@@ -17,6 +17,8 @@ const envSchema = z.object({
     .default('true')
     .transform((v) => v === 'true'),
   INTERNAL_API_KEY: z.string().optional(),
+  // /api/docs e /api/openapi.json (seção 6.11). Sem valor: ligado fora de produção.
+  API_DOCS: z.enum(['true', 'false']).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -43,4 +45,11 @@ export function getEnv(): Env {
   }
   cached = parsed.data;
   return cached;
+}
+
+/** Swagger ligado? Em produção só com API_DOCS=true (seção 6.11). */
+export function docsLigado(): boolean {
+  const { API_DOCS } = getEnv();
+  if (API_DOCS) return API_DOCS === 'true';
+  return process.env.NODE_ENV !== 'production';
 }
