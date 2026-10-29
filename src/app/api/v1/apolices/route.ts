@@ -3,9 +3,10 @@ import { ok, erroValidacao, falhaBanco } from '@/lib/api-response';
 import { lerPaginacao, lista } from '@/lib/http/paginacao';
 import { exigirSessao } from '@/lib/security/sessao';
 import { listarApolices } from '@/lib/services/leitura';
+import { comLog } from '@/lib/http/log';
 
 // GET /api/v1/apolices?pagina=1&limite=20 — apólices do usuário (seção 6.5).
-export async function GET(req: NextRequest) {
+async function get(req: NextRequest) {
   const sessao = await exigirSessao(req);
   if (sessao instanceof Response) return sessao;
 
@@ -19,3 +20,5 @@ export async function GET(req: NextRequest) {
     return falhaBanco('apolices', e);
   }
 }
+
+export const GET = comLog(get);

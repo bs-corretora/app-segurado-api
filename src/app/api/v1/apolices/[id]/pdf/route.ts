@@ -3,9 +3,10 @@ import { ok, erro, falhaBanco, naoEncontrado } from '@/lib/api-response';
 import { exigirSessao } from '@/lib/security/sessao';
 import { idSchema } from '@/lib/schemas/app';
 import { urlPdfApolice } from '@/lib/services/leitura';
+import { comLog } from '@/lib/http/log';
 
 // GET /api/v1/apolices/{id}/pdf — URL assinada do Storage, válida por 60 s (seção 6.5).
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function get(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const sessao = await exigirSessao(req);
   if (sessao instanceof Response) return sessao;
 
@@ -21,3 +22,5 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return falhaBanco('apolices/id/pdf', e);
   }
 }
+
+export const GET = comLog(get);

@@ -3,9 +3,10 @@ import { ok, erro, erroValidacao } from '@/lib/api-response';
 import { exigirSessao } from '@/lib/security/sessao';
 import { atualizarPerfil, buscarPerfil } from '@/lib/services/perfil';
 import { atualizarMeSchema } from '@/lib/schemas/conta';
+import { comLog } from '@/lib/http/log';
 
 // GET /api/v1/me — exige sessão (seção 6.3). Dados do perfil + e-mail do Auth.
-export async function GET(req: NextRequest) {
+async function get(req: NextRequest) {
   const sessao = await exigirSessao(req);
   if (sessao instanceof Response) return sessao;
 
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
 }
 
 // PATCH /api/v1/me — atualiza telefone e aceita_marketing (seção 6.3).
-export async function PATCH(req: NextRequest) {
+async function patch(req: NextRequest) {
   const sessao = await exigirSessao(req);
   if (sessao instanceof Response) return sessao;
 
@@ -35,3 +36,6 @@ export async function PATCH(req: NextRequest) {
   }
   return ok({ ...data, email: sessao.email });
 }
+
+export const GET = comLog(get);
+export const PATCH = comLog(patch);

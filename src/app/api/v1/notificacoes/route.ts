@@ -4,9 +4,10 @@ import { lerPaginacao, lista } from '@/lib/http/paginacao';
 import { exigirSessao } from '@/lib/security/sessao';
 import { notificacoesQuerySchema } from '@/lib/schemas/app';
 import { listarNotificacoes } from '@/lib/services/leitura';
+import { comLog } from '@/lib/http/log';
 
 // GET /api/v1/notificacoes?pagina=1&limite=20&nao_lidas=true — mais recentes primeiro (seção 6.9).
-export async function GET(req: NextRequest) {
+async function get(req: NextRequest) {
   const sessao = await exigirSessao(req);
   if (sessao instanceof Response) return sessao;
 
@@ -26,3 +27,5 @@ export async function GET(req: NextRequest) {
     return falhaBanco('notificacoes', e);
   }
 }
+
+export const GET = comLog(get);
