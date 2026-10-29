@@ -14,9 +14,12 @@ const limitadores = {
 export type Escopo = keyof typeof limitadores;
 
 export function ipDe(req: NextRequest): string {
-  // No Render a API fica atrás de proxy: o IP real vem no x-forwarded-for.
+  // No Render a API fica atrás de um proxy, que ACRESCENTA o IP real no fim do
+  // x-forwarded-for. O começo da lista vem do cliente e pode ser forjado (um IP
+  // novo por tentativa furaria o limite de login), então vale o último valor.
   const xff = req.headers.get('x-forwarded-for');
-  return xff?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'desconhecido';
+  const ultimo = xff?.split(',').at(-1)?.trim();
+  return ultimo || req.headers.get('x-real-ip') || 'desconhecido';
 }
 
 /** Retorna uma resposta 429 se o limite estourou; caso contrário, null. */
