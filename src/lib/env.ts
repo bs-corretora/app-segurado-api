@@ -17,6 +17,12 @@ const envSchema = z.object({
     .default('true')
     .transform((v) => v === 'true'),
   INTERNAL_API_KEY: z.string().optional(),
+    // Endereço público da API/página (ex.: https://api.exemplo.com.br), sem barra no fim. Usado no link
+  // de indicação. Sem valor, o link usa o endereço da própria requisição.
+  PUBLIC_BASE_URL: z
+    .url('PUBLIC_BASE_URL inválida')
+    .transform((v) => v.replace(/\/+$/, ''))
+    .optional(),
   // /api/docs e /api/openapi.json (seção 6.11). Sem valor: ligado fora de produção.
   API_DOCS: z.enum(['true', 'false']).optional(),
 });
