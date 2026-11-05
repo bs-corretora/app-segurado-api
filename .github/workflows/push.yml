@@ -1,0 +1,40 @@
+name: Push pendentes
+
+# Agendador do push (Etapa 6): chama POST /api/v1/internal/push/pendentes na API publicada.
+# As notificações nascem no banco (job de aniversário do pg_cron, campanhas, mudança de status);
+# esta chamada é que manda o push pelo Expo.
+#
+# Precisa de dois secrets no repositório (Settings > Secrets and variables > Actions):
+#   API_URL           endereço público da API, sem barra no fim (ex.: https://app-segurado-api.onrender.com)
+#   INTERNAL_API_KEY  a mesma chave configurada no Render
+# Sem eles, o workflow só avisa e termina com sucesso.
+#
+# O GitHub não garante o horário exato do cron (pode atrasar alguns minutos).
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: push-pendentes
+  cancel-in-progress: false
+
+jobs:
+  enviar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Chama a API
+        env:
+          API_URL: ${{ secrets.API_URL }}
+          INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
+        run: |
+          if [ -z "$API_URL" ] || [ -z "$INTERNAL_API_KEY" ]; then
+            echo "::notice::Secrets API_URL e INTERNAL_API_KEY não configurados; nada a fazer."
+            exit 0
+          fi
+          # O plano gratuito do Render dorme após 15 min sem acesso: o primeiro pedido pode levar ~1 min.
+          curl -sS --fail-with-body --max-time 120 --retry 2 --retry-delay 10 \
+            -X POST -H "Authorization: Bearer $INTERNAL_API_KEY" \
+            "$API_URL/api/v1/internal/push/pendentes"
