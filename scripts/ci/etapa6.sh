@@ -56,7 +56,8 @@ confere 'campanha com produto inválido → 400' 400 "$(req admin POST /admin/ca
 confere 'campanha para todos → 201' 201 "$(req admin POST /admin/campanhas '{"titulo":"Novidade","mensagem":"Campanha do CI"}')"
 # Segurados com aceita_marketing: Maria, João, Carlos e Fernanda. Ana desativou; o admin não é segurado.
 confere 'campanha chegou a 4 (Ana desativou marketing)' 4 "$(campo destinatarios)"
-confere 'Ana não recebeu a campanha' 0 "$(sql "SELECT count(*) FROM notificacao WHERE tipo = 'MARKETING' AND perfil_id = '44444444-4444-4444-4444-444444444444'")"
+# (o seed já tem uma MARKETING antiga da Ana; conta só a desta campanha)
+confere 'Ana não recebeu a campanha' 0 "$(sql "SELECT count(*) FROM notificacao WHERE titulo = 'Novidade' AND perfil_id = '44444444-4444-4444-4444-444444444444'")"
 confere 'campanha só AUTO → 201' 201 "$(req admin POST /admin/campanhas '{"titulo":"Auto","mensagem":"Só auto","produto":"AUTO"}')"
 # Apólice AUTO ativa: Maria e Carlos.
 confere 'campanha AUTO chegou a 2' 2 "$(campo destinatarios)"
