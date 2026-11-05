@@ -119,6 +119,7 @@ jobs:
           cat api.log
           exit 1
       - run: bash scripts/ci/etapa6.sh
+      - run: bash scripts/ci/etapa5.sh
       - name: Log da API
         if: always()
         run: cat api.log expo.log || true

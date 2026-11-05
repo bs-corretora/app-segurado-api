@@ -1,6 +1,13 @@
 import { z } from 'zod';
 import { atualizarMeSchema, cadastroSchema, esqueciSenhaSchema, loginSchema } from '@/lib/schemas/conta';
 import { campanhaSchema, dispositivoSchema } from '@/lib/schemas/push';
+import {
+  alterarContatoSchema,
+  novoContatoSchema,
+  respostaCotacaoSchema,
+  statusIndicacaoSchema,
+  statusSinistroSchema,
+} from '@/lib/schemas/admin';
 
 // Especificação OpenAPI 3.1 (seção 6.11). Os corpos de entrada saem dos mesmos
 // schemas Zod que as rotas usam para validar; as respostas trazem exemplos do seed.
@@ -81,6 +88,24 @@ const PERFIL = {
   email: 'maria.souza@email.com',
 };
 
+const CONTATO = {
+  id: 'b840ab68-be4a-48fd-aded-986f133edf33',
+  tipo: 'ASSISTENCIA_24H',
+  produto: 'AUTO',
+  rotulo: 'Assistência 24h - Auto',
+  telefone: '08007001000',
+  whatsapp: '5581900000000',
+  ativo: true,
+};
+
+const statusQuery = (valores: string[]) => ({
+  name: 'status',
+  in: 'query',
+  schema: { type: 'string', enum: valores },
+});
+
+const admin = { tags: ['Administração'], ...autenticada };
+
 export function especificacaoOpenApi() {
   return {
     openapi: '3.1.0',
@@ -101,6 +126,7 @@ export function especificacaoOpenApi() {
       { name: 'Assistência' },
       { name: 'Notificações' },
       { name: 'Push e campanhas' },
+      { name: 'Administração' },
     ],
     components: {
       securitySchemes: {
@@ -137,6 +163,11 @@ export function especificacaoOpenApi() {
           status: 403,
           erro: 'SEM_PERMISSAO',
           mensagem: 'Seu perfil não tem acesso a este recurso',
+        }),
+        Conflito: resposta('Mudança de estado não permitida', {
+          status: 409,
+          erro: 'CONFLITO',
+          mensagem: 'O status do sinistro só pode avançar',
         }),
         LimiteExcedido: resposta('Limite de requisições excedido (cabeçalho Retry-After)', {
           status: 429,
@@ -465,6 +496,254 @@ export function especificacaoOpenApi() {
               erro: 'NAO_AUTENTICADO',
               mensagem: 'Chave interna ausente ou inválida',
             }),
+          },
+        },
+      },
+      '/admin/segurados': {
+        get: {
+          ...admin,
+          summary: 'Buscar segurados (ADMIN)',
+          description: 'busca: parte do nome, começo do CPF (com ou sem pontuação) ou parte do e-mail.',
+          parameters: [...paginacao, { name: 'busca', in: 'query', schema: { type: 'string' } }],
+          responses: {
+            200: resposta('Lista paginada', {
+              itens: [
+                {
+                  id: PERFIL.id,
+                  nome: PERFIL.nome,
+                  cpf: PERFIL.cpf,
+                  telefone: PERFIL.telefone,
+                  email: PERFIL.email,
+                  cliente_desde: PERFIL.cliente_desde,
+                  aceita_marketing: true,
+                },
+              ],
+              pagina: 1,
+              limite: 20,
+              total: 1,
+            }),
+            400: ref('Validacao'),
+            401: ref('NaoAutenticado'),
+            403: ref('SemPermissao'),
+          },
+        },
+      },
+      '/admin/segurados/{id}': {
+        get: {
+          ...admin,
+          summary: 'Perfil, e-mail e apólices de um segurado (ADMIN)',
+          parameters: [parametroId('perfil')],
+          responses: {
+            200: resposta('Segurado', { ...PERFIL, apolices: [{ ...APOLICE, premio: 1890.5 }] }),
+            401: ref('NaoAutenticado'),
+            403: ref('SemPermissao'),
+            404: ref('NaoEncontrado'),
+          },
+        },
+      },
+      '/admin/sinistros': {
+        get: {
+          ...admin,
+          summary: 'Sinistros com filtro de status (ADMIN)',
+          parameters: [...paginacao, statusQuery(['ABERTO', 'EM_ANALISE', 'CONCLUIDO'])],
+          responses: {
+            200: resposta('Lista paginada', {
+              itens: [
+                {
+                  id: 'a7d21111-1111-1111-1111-111111111111',
+                  protocolo: 'SIN-2026-000123',
+                  tipo: 'COLISAO',
+                  status: 'EM_ANALISE',
+                  data_ocorrencia: '2026-10-03T17:20:00+00:00',
+                  criado_em: '2026-10-03T17:25:00+00:00',
+                  atualizado_em: '2026-10-04T12:00:00+00:00',
+                  segurado: { id: PERFIL.id, nome: PERFIL.nome },
+                  apolice: { id: APOLICE.id, numero: APOLICE.numero, produto: 'AUTO' },
+                },
+              ],
+              pagina: 1,
+              limite: 20,
+              total: 1,
+            }),
+            400: ref('Validacao'),
+            401: ref('NaoAutenticado'),
+            403: ref('SemPermissao'),
+          },
+        },
+      },
+      '/admin/sinistros/{id}/status': {
+        patch: {
+          ...admin,
+          summary: 'Mudar o status do sinistro (ADMIN)',
+          description:
+            'Grava o evento na linha do tempo e a notificação do segurado na mesma transação. O status ' +
+            'só avança (ABERTO → EM_ANALISE → CONCLUIDO); repetir ou voltar responde 409.',
+          parameters: [parametroId('sinistro')],
+          requestBody: corpo(statusSinistroSchema, {
+            status: 'CONCLUIDO',
+            comentario: 'Indenização aprovada.',
+          }),
+          responses: {
+            200: resposta('Sinistro atualizado', {
+              id: 'a7d21111-1111-1111-1111-111111111111',
+              protocolo: 'SIN-2026-000123',
+              status: 'CONCLUIDO',
+            }),
+            400: ref('Validacao'),
+            401: ref('NaoAutenticado'),
+            403: ref('SemPermissao'),
+            404: ref('NaoEncontrado'),
+            409: ref('Conflito'),
+          },
+        },
+      },
+      '/admin/cotacoes': {
+        get: {
+          ...admin,
+          summary: 'Cotações com filtro de status (ADMIN)',
+          parameters: [...paginacao, statusQuery(['RECEBIDA', 'EM_ANALISE', 'RESPONDIDA'])],
+          responses: {
+            200: resposta('Lista paginada', {
+              itens: [
+                {
+                  id: 'c31e2222-2222-2222-2222-222222222222',
+                  produto: 'AUTO',
+                  motivo: 'RENOVACAO',
+                  dados: { placa: 'PEX1A23' },
+                  status: 'RECEBIDA',
+                  resposta: null,
+                  valor_estimado: null,
+                  respondida_em: null,
+                  criado_em: '2026-10-20T22:15:00+00:00',
+                  segurado: { id: '55555555-5555-5555-5555-555555555555', nome: 'Carlos Pereira' },
+                },
+              ],
+              pagina: 1,
+              limite: 20,
+              total: 1,
+            }),
+            400: ref('Validacao'),
+            401: ref('NaoAutenticado'),
+            403: ref('SemPermissao'),
+          },
+        },
+      },
+      '/admin/cotacoes/{id}/resposta': {
+        patch: {
+          ...admin,
+          summary: 'Responder cotação (ADMIN)',
+          description: 'Marca RESPONDIDA e notifica o segurado. Cotação já respondida: 409.',
+          parameters: [parametroId('cotação')],
+          requestBody: corpo(respostaCotacaoSchema, {
+            resposta: 'Renovação com 10% de desconto.',
+            valor_estimado: 2150.0,
+          }),
+          responses: {
+            200: resposta('Cotação respondida', {
+              id: 'c31e2222-2222-2222-2222-222222222222',
+              status: 'RESPONDIDA',
+              resposta: 'Renovação com 10% de desconto.',
+              valor_estimado: 2150,
+            }),
+            400: ref('Validacao'),
+            401: ref('NaoAutenticado'),
+            403: ref('SemPermissao'),
+            404: ref('NaoEncontrado'),
+            409: ref('Conflito'),
+          },
+        },
+      },
+      '/admin/indicacoes': {
+        get: {
+          ...admin,
+          summary: 'Indicações com filtro de status (ADMIN)',
+          parameters: [...paginacao, statusQuery(['NOVA', 'CONTATADA', 'CONVERTIDA'])],
+          responses: {
+            200: resposta('Lista paginada', {
+              itens: [
+                {
+                  id: 'd1a11111-1111-1111-1111-111111111111',
+                  nome: 'Lucas Mendes',
+                  telefone: '81999998888',
+                  email: 'lucas.mendes@email.com',
+                  status: 'NOVA',
+                  criado_em: '2026-10-05T14:00:00+00:00',
+                  indicador: { id: PERFIL.id, nome: PERFIL.nome },
+                },
+              ],
+              pagina: 1,
+              limite: 20,
+              total: 1,
+            }),
+            400: ref('Validacao'),
+            401: ref('NaoAutenticado'),
+            403: ref('SemPermissao'),
+          },
+        },
+      },
+      '/admin/indicacoes/{id}/status': {
+        patch: {
+          ...admin,
+          summary: 'Mudar o status da indicação (ADMIN)',
+          description: 'Só avança (NOVA → CONTATADA → CONVERTIDA); repetir ou voltar responde 409.',
+          parameters: [parametroId('indicação')],
+          requestBody: corpo(statusIndicacaoSchema, { status: 'CONTATADA' }),
+          responses: {
+            200: resposta('Indicação atualizada', { status: 'CONTATADA' }),
+            400: ref('Validacao'),
+            401: ref('NaoAutenticado'),
+            403: ref('SemPermissao'),
+            404: ref('NaoEncontrado'),
+            409: ref('Conflito'),
+          },
+        },
+      },
+      '/admin/contatos': {
+        get: {
+          ...admin,
+          summary: 'Contatos de assistência e sinistro, inclusive inativos (ADMIN)',
+          parameters: [
+            { name: 'tipo', in: 'query', schema: { type: 'string', enum: ['ASSISTENCIA_24H', 'SINISTRO'] } },
+          ],
+          responses: {
+            200: resposta('Contatos', { itens: [CONTATO] }),
+            400: ref('Validacao'),
+            401: ref('NaoAutenticado'),
+            403: ref('SemPermissao'),
+          },
+        },
+        post: {
+          ...admin,
+          summary: 'Criar contato (ADMIN)',
+          description: 'Precisa de telefone ou WhatsApp. produto null vale para todos os produtos.',
+          requestBody: corpo(novoContatoSchema, {
+            tipo: 'ASSISTENCIA_24H',
+            produto: 'AUTO',
+            rotulo: 'Guincho 24h',
+            telefone: '08007005000',
+          }),
+          responses: {
+            201: resposta('Contato criado', CONTATO),
+            400: ref('Validacao'),
+            401: ref('NaoAutenticado'),
+            403: ref('SemPermissao'),
+          },
+        },
+      },
+      '/admin/contatos/{id}': {
+        patch: {
+          ...admin,
+          summary: 'Alterar contato (ADMIN)',
+          description:
+            'Alteração parcial; { "ativo": false } desativa. Não pode ficar sem telefone e sem WhatsApp.',
+          parameters: [parametroId('contato')],
+          requestBody: corpo(alterarContatoSchema, { ativo: false }),
+          responses: {
+            200: resposta('Contato atualizado', { ...CONTATO, ativo: false }),
+            400: ref('Validacao'),
+            401: ref('NaoAutenticado'),
+            403: ref('SemPermissao'),
+            404: ref('NaoEncontrado'),
           },
         },
       },
