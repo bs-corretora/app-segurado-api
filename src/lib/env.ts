@@ -16,7 +16,10 @@ const envSchema = z.object({
     .enum(['true', 'false'])
     .default('true')
     .transform((v) => v === 'true'),
-  INTERNAL_API_KEY: z.string().optional(),
+  // Chave de POST /internal/push/pendentes (seção 6.9). Sem valor, a rota recusa tudo com 401.
+  INTERNAL_API_KEY: z.string().min(32, 'INTERNAL_API_KEY deve ter no mínimo 32 caracteres').optional(),
+  // Endpoint do Expo Push. Só se troca em teste (o CI aponta para um servidor falso).
+  EXPO_PUSH_URL: z.url('EXPO_PUSH_URL inválida').default('https://exp.host/--/api/v2/push/send'),
   // /api/docs e /api/openapi.json (seção 6.11). Sem valor: ligado fora de produção.
   API_DOCS: z.enum(['true', 'false']).optional(),
 });
