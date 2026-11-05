@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { atualizarMeSchema, cadastroSchema, esqueciSenhaSchema, loginSchema } from '@/lib/schemas/conta';
+import { campanhaSchema, dispositivoSchema } from '@/lib/schemas/push';
 
 // Especificação OpenAPI 3.1 (seção 6.11). Os corpos de entrada saem dos mesmos
 // schemas Zod que as rotas usam para validar; as respostas trazem exemplos do seed.
@@ -99,6 +100,7 @@ export function especificacaoOpenApi() {
       { name: 'Apólices' },
       { name: 'Assistência' },
       { name: 'Notificações' },
+      { name: 'Push e campanhas' },
     ],
     components: {
       securitySchemes: {
@@ -107,6 +109,11 @@ export function especificacaoOpenApi() {
           in: 'cookie',
           name: 'access_token',
           description: 'Gravado pelo login. HttpOnly: o navegador envia sozinho.',
+        },
+        chaveInterna: {
+          type: 'http',
+          scheme: 'bearer',
+          description: 'INTERNAL_API_KEY. Só o agendador do push usa.',
         },
       },
       responses: {
@@ -125,6 +132,11 @@ export function especificacaoOpenApi() {
           status: 404,
           erro: 'NAO_ENCONTRADO',
           mensagem: 'Apólice não encontrada',
+        }),
+        SemPermissao: resposta('Perfil sem o papel exigido', {
+          status: 403,
+          erro: 'SEM_PERMISSAO',
+          mensagem: 'Seu perfil não tem acesso a este recurso',
         }),
         LimiteExcedido: resposta('Limite de requisições excedido (cabeçalho Retry-After)', {
           status: 429,
@@ -365,6 +377,94 @@ export function especificacaoOpenApi() {
             }),
             401: ref('NaoAutenticado'),
             404: ref('NaoEncontrado'),
+          },
+        },
+      },
+      '/dispositivos': {
+        post: {
+          tags: ['Push e campanhas'],
+          summary: 'Registrar o token de push do aparelho',
+          description: 'Token que já existia passa para o usuário logado (outro login no mesmo aparelho).',
+          ...autenticada,
+          requestBody: corpo(dispositivoSchema, {
+            push_token: 'ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]',
+            plataforma: 'ANDROID',
+          }),
+          responses: {
+            201: resposta('Dispositivo registrado', {
+              id: 'c0a81111-1111-1111-1111-111111111111',
+              push_token: 'ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]',
+              plataforma: 'ANDROID',
+              atualizado_em: '2026-11-05T22:00:00+00:00',
+            }),
+            400: ref('Validacao'),
+            401: ref('NaoAutenticado'),
+          },
+        },
+      },
+      '/dispositivos/{token}': {
+        delete: {
+          tags: ['Push e campanhas'],
+          summary: 'Remover o token no logout',
+          ...autenticada,
+          parameters: [
+            {
+              name: 'token',
+              in: 'path',
+              required: true,
+              description: 'Token do Expo Push, codificado com encodeURIComponent',
+              schema: { type: 'string' },
+            },
+          ],
+          responses: {
+            204: resposta('Removido'),
+            401: ref('NaoAutenticado'),
+            404: ref('NaoEncontrado'),
+          },
+        },
+      },
+      '/admin/campanhas': {
+        post: {
+          tags: ['Push e campanhas'],
+          summary: 'Enviar campanha (ADMIN)',
+          description:
+            'Cria uma notificação MARKETING para cada segurado com aceita_marketing = true; com ' +
+            '`produto`, só para quem tem apólice ATIVA dele. O push sai na próxima execução do agendador.',
+          ...autenticada,
+          requestBody: corpo(campanhaSchema, {
+            titulo: 'Revisão gratuita',
+            mensagem: 'Agende a revisão do seu carro sem custo até o fim do mês.',
+            produto: 'AUTO',
+          }),
+          responses: {
+            201: resposta('Campanha criada', { destinatarios: 2 }),
+            400: ref('Validacao'),
+            401: ref('NaoAutenticado'),
+            403: ref('SemPermissao'),
+          },
+        },
+      },
+      '/internal/push/pendentes': {
+        post: {
+          tags: ['Push e campanhas'],
+          summary: 'Enviar o push das notificações pendentes (agendador)',
+          description:
+            'Reserva as notificações com push_enviado_em nulo e envia pelo Expo Push. Lote que falha ' +
+            'volta para a fila; token de app desinstalado é apagado.',
+          security: [{ chaveInterna: [] }],
+          responses: {
+            200: resposta('Resumo do envio', {
+              processadas: 3,
+              mensagens: 2,
+              sem_aparelho: 1,
+              devolvidas: 0,
+              tokens_removidos: 0,
+            }),
+            401: resposta('Chave interna ausente ou inválida', {
+              status: 401,
+              erro: 'NAO_AUTENTICADO',
+              mensagem: 'Chave interna ausente ou inválida',
+            }),
           },
         },
       },

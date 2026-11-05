@@ -59,6 +59,23 @@ jobs:
               IF n <> 6 THEN RAISE EXCEPTION 'seed: senha de teste não confere em % usuários', 6 - n; END IF;
           END $$;
 
+          -- Etapa 6: aniversário em 29/02 cai em 28/02 nos anos não bissextos.
+          BEGIN;
+          UPDATE public.perfil SET data_nascimento = '2000-02-29'
+              WHERE id = '66666666-6666-6666-6666-666666666666';
+          DO $$
+          DECLARE
+              n INT;
+          BEGIN
+              n := public.gerar_notificacoes_aniversario('2027-02-28');
+              IF n <> 1 THEN RAISE EXCEPTION 'aniversário 29/02 em ano comum: esperava 1, veio %', n; END IF;
+              n := public.gerar_notificacoes_aniversario('2028-02-28');
+              IF n <> 0 THEN RAISE EXCEPTION 'aniversário 29/02 em 28/02 de ano bissexto: esperava 0, veio %', n; END IF;
+              n := public.gerar_notificacoes_aniversario('2028-02-29');
+              IF n <> 1 THEN RAISE EXCEPTION 'aniversário 29/02 em ano bissexto: esperava 1, veio %', n; END IF;
+          END $$;
+          ROLLBACK;
+
           SET ROLE anon;
           DO $$
           DECLARE
@@ -72,3 +89,36 @@ jobs:
               END LOOP;
           END $$;
           SQL
+
+  ponta-a-ponta:
+    name: API ponta a ponta (Etapa 6)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.121.0
+      - run: npm ci
+      - run: npm run build
+      # Auth, REST e Postgres bastam para a API; o resto fica de fora para subir mais rápido.
+      - run: supabase start -x studio,imgproxy,edge-runtime,logflare,vector,realtime,supavisor,postgres-meta
+      - name: Sobe o Expo falso e a API
+        run: |
+          eval "$(supabase status -o env)"
+          echo "INTERNAL_API_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          node scripts/ci/expo-falso.mjs > expo.log 2>&1 &
+          SUPABASE_URL="$API_URL"           SUPABASE_SERVICE_ROLE_KEY="${SERVICE_ROLE_KEY:-$SECRET_KEY}"           INTERNAL_API_KEY="$(tail -1 "$GITHUB_ENV" | cut -d= -f2)"           EXPO_PUSH_URL=http://127.0.0.1:4000/push           COOKIE_SECURE=false           CORS_ALLOWED_ORIGINS=http://localhost:3000             PORT=3000 HOSTNAME=127.0.0.1 nohup node .next/standalone/server.js > api.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:3000/api/v1/health && exit 0
+            sleep 2
+          done
+          cat api.log
+          exit 1
+      - run: bash scripts/ci/etapa6.sh
+      - name: Log da API
+        if: always()
+        run: cat api.log expo.log || true
