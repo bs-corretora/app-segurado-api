@@ -1,0 +1,112 @@
+/* Valores de docs/DESIGN.md. */
+.pagina {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  border-top: 6px solid var(--ceu);
+}
+
+.cartao {
+  width: 100%;
+  max-width: 440px;
+  background: var(--cartao);
+  border-radius: 16px;
+  padding: 32px 24px;
+  box-shadow: 0 8px 30px rgb(28 29 43 / 0.08);
+}
+
+.marca {
+  margin: 0 0 16px;
+  color: var(--marca);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.titulo {
+  margin: 0 0 8px;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.3px;
+}
+
+.apoio {
+  margin: 0 0 24px;
+  color: var(--texto-apoio);
+  font-size: 16px;
+}
+
+.formulario {
+  display: grid;
+  gap: 16px;
+}
+
+.campo {
+  display: grid;
+  gap: 6px;
+}
+
+.rotulo {
+  font-weight: 600;
+}
+
+.entrada {
+  font: inherit;
+  font-size: 16px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--borda);
+  border-radius: 10px;
+  color: var(--texto);
+  background: var(--cartao);
+}
+
+.entrada:focus-visible {
+  outline: 3px solid var(--ceu);
+  outline-offset: 1px;
+  border-color: var(--marca);
+}
+
+.entradaErro {
+  border-color: var(--erro);
+}
+
+.erroCampo {
+  color: var(--erro);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.erroGeral {
+  margin: 0;
+  color: var(--erro);
+  font-weight: 600;
+}
+
+.botao {
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--marca);
+  color: #fff;
+  cursor: pointer;
+}
+
+.botao:hover:not(:disabled) {
+  background: var(--marca-escura);
+}
+
+.botao:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.sucesso {
+  margin: 0;
+  color: var(--sucesso);
+  font-size: 16px;
+  font-weight: 600;
+}

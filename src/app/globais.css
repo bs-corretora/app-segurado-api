@@ -1,0 +1,26 @@
+/* Tokens de docs/DESIGN.md. Valor novo entra lá primeiro. */
+:root {
+  --marca: #494a99;
+  --marca-escura: #35366f;
+  --ceu: #37a6de;
+  --texto: #1c1d2b;
+  --texto-apoio: #4d4f63;
+  --fundo: #f5f6fb;
+  --cartao: #ffffff;
+  --borda: #c9cbdd;
+  --erro: #b42318;
+  --sucesso: #146c43;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--fundo);
+  color: var(--texto);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.4;
+}
