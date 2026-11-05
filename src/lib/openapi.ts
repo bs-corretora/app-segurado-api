@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { atualizarMeSchema, cadastroSchema, esqueciSenhaSchema, loginSchema } from '@/lib/schemas/conta';
 import { campanhaSchema, dispositivoSchema } from '@/lib/schemas/push';
+import { abrirSinistroSchema } from '@/lib/schemas/sinistro';
+import { cotacaoSchema, indicadoSchema } from '@/lib/schemas/escrita';
 
 // Especificação OpenAPI 3.1 (seção 6.11). Os corpos de entrada saem dos mesmos
 // schemas Zod que as rotas usam para validar; as respostas trazem exemplos do seed.
@@ -99,6 +101,9 @@ export function especificacaoOpenApi() {
       { name: 'Início' },
       { name: 'Apólices' },
       { name: 'Assistência' },
+      { name: 'Sinistros' },
+      { name: 'Cotações' },
+      { name: 'Indicações' },
       { name: 'Notificações' },
       { name: 'Push e campanhas' },
     ],
@@ -137,6 +142,11 @@ export function especificacaoOpenApi() {
           status: 403,
           erro: 'SEM_PERMISSAO',
           mensagem: 'Seu perfil não tem acesso a este recurso',
+        }),
+        Conflito: resposta('Operação não permitida no estado atual', {
+          status: 409,
+          erro: 'CONFLITO',
+          mensagem: 'Só é possível abrir sinistro de apólice ativa',
         }),
         LimiteExcedido: resposta('Limite de requisições excedido (cabeçalho Retry-After)', {
           status: 429,
@@ -346,6 +356,207 @@ export function especificacaoOpenApi() {
             }),
             400: ref('Validacao'),
             401: ref('NaoAutenticado'),
+          },
+        },
+      },
+      '/sinistros': {
+        post: {
+          tags: ['Sinistros'],
+          summary: 'Abrir sinistro',
+          description:
+            'Grava o sinistro e o evento ABERTO na mesma transação e devolve o protocolo. ' +
+            'Apólice de outro usuário: 404; apólice que não está ATIVA: 409.',
+          ...autenticada,
+          requestBody: corpo(abrirSinistroSchema, {
+            apolice_id: '6f1c1111-1111-1111-1111-111111111111',
+            tipo: 'COLISAO',
+            data_ocorrencia: '2026-11-04T18:30:00-03:00',
+            local: 'Av. Boa Viagem, Recife',
+            descricao: 'Batida leve no para-choque traseiro.',
+          }),
+          responses: {
+            201: resposta('Sinistro aberto', {
+              id: 'a7d29999-9999-9999-9999-999999999999',
+              protocolo: 'SIN-2026-000125',
+              tipo: 'COLISAO',
+              status: 'ABERTO',
+              data_ocorrencia: '2026-11-04T21:30:00+00:00',
+              local: 'Av. Boa Viagem, Recife',
+              descricao: 'Batida leve no para-choque traseiro.',
+              apolice_id: '6f1c1111-1111-1111-1111-111111111111',
+              criado_em: '2026-11-05T22:00:00+00:00',
+            }),
+            400: ref('Validacao'),
+            401: ref('NaoAutenticado'),
+            404: ref('NaoEncontrado'),
+            409: ref('Conflito'),
+          },
+        },
+        get: {
+          tags: ['Sinistros'],
+          summary: 'Sinistros do usuário, mais recentes primeiro',
+          ...autenticada,
+          parameters: paginacao,
+          responses: {
+            200: resposta('Lista paginada', {
+              itens: [
+                {
+                  id: 'a7d29999-9999-9999-9999-999999999999',
+                  protocolo: 'SIN-2026-000125',
+                  tipo: 'COLISAO',
+                  status: 'ABERTO',
+                  data_ocorrencia: '2026-11-04T21:30:00+00:00',
+                  apolice_id: '6f1c1111-1111-1111-1111-111111111111',
+                  criado_em: '2026-11-05T22:00:00+00:00',
+                },
+              ],
+              pagina: 1,
+              limite: 20,
+              total: 1,
+            }),
+            401: ref('NaoAutenticado'),
+          },
+        },
+      },
+      '/sinistros/{id}': {
+        get: {
+          tags: ['Sinistros'],
+          summary: 'Detalhe com a linha do tempo',
+          ...autenticada,
+          parameters: [parametroId('sinistro')],
+          responses: {
+            200: resposta('Sinistro', {
+              id: 'a7d29999-9999-9999-9999-999999999999',
+              protocolo: 'SIN-2026-000125',
+              tipo: 'COLISAO',
+              status: 'ABERTO',
+              eventos: [
+                {
+                  id: 'e1111111-1111-1111-1111-111111111111',
+                  status: 'ABERTO',
+                  comentario: 'Sinistro aberto pelo aplicativo.',
+                  criado_em: '2026-11-05T22:00:00+00:00',
+                },
+              ],
+            }),
+            401: ref('NaoAutenticado'),
+            404: ref('NaoEncontrado'),
+          },
+        },
+      },
+      '/cotacoes': {
+        post: {
+          tags: ['Cotações'],
+          summary: 'Pedir cotação',
+          description:
+            'O pedido nasce RECEBIDA. `dados` são os campos do formulário do produto (até 30, valores simples).',
+          ...autenticada,
+          requestBody: corpo(cotacaoSchema, {
+            produto: 'AUTO',
+            motivo: 'NOVO',
+            dados: { modelo: 'Onix 2022', placa: 'ABC1D23', uso: 'particular' },
+          }),
+          responses: {
+            201: resposta('Cotação registrada', {
+              id: 'c31e9999-9999-9999-9999-999999999999',
+              produto: 'AUTO',
+              motivo: 'NOVO',
+              dados: { modelo: 'Onix 2022', placa: 'ABC1D23', uso: 'particular' },
+              status: 'RECEBIDA',
+              resposta: null,
+              valor_estimado: null,
+              respondida_em: null,
+              criado_em: '2026-11-05T22:00:00+00:00',
+            }),
+            400: ref('Validacao'),
+            401: ref('NaoAutenticado'),
+          },
+        },
+        get: {
+          tags: ['Cotações'],
+          summary: 'Pedidos do usuário, com a resposta quando houver',
+          ...autenticada,
+          parameters: paginacao,
+          responses: {
+            200: resposta('Lista paginada', {
+              itens: [
+                {
+                  id: 'c31e1111-1111-1111-1111-111111111111',
+                  produto: 'RESIDENCIAL',
+                  motivo: 'NOVO',
+                  status: 'RESPONDIDA',
+                  resposta: 'Plano básico a partir de R$ 39,90/mês.',
+                  valor_estimado: 478.8,
+                },
+              ],
+              pagina: 1,
+              limite: 20,
+              total: 1,
+            }),
+            401: ref('NaoAutenticado'),
+          },
+        },
+      },
+      '/indicacoes/link': {
+        get: {
+          tags: ['Indicações'],
+          summary: 'Link de indicação do usuário',
+          ...autenticada,
+          responses: {
+            200: resposta('Link', {
+              codigo: 'MARIA123',
+              link: 'https://api.exemplo.com.br/indicacao/MARIA123',
+            }),
+            401: ref('NaoAutenticado'),
+          },
+        },
+      },
+      '/indicacoes': {
+        get: {
+          tags: ['Indicações'],
+          summary: 'Indicações feitas pelo usuário',
+          description: 'Telefone e e-mail do indicado não voltam: são dados de outra pessoa.',
+          ...autenticada,
+          parameters: paginacao,
+          responses: {
+            200: resposta('Lista paginada', {
+              itens: [
+                {
+                  id: 'd1111111-1111-1111-1111-111111111111',
+                  nome: 'Lucas Mendes',
+                  status: 'NOVA',
+                  criado_em: '2026-10-05T14:00:00+00:00',
+                },
+              ],
+              pagina: 1,
+              limite: 20,
+              total: 1,
+            }),
+            401: ref('NaoAutenticado'),
+          },
+        },
+      },
+      '/public/indicacoes/{codigo}': {
+        post: {
+          tags: ['Indicações'],
+          summary: 'Indicado deixa os dados (pública)',
+          description: 'Usada pela página /indicacao/{codigo}. Limite: 10 por minuto por IP.',
+          ...publica,
+          parameters: [
+            { name: 'codigo', in: 'path', required: true, schema: { type: 'string' }, example: 'MARIA123' },
+          ],
+          requestBody: corpo(indicadoSchema, {
+            nome: 'Rafael Lima',
+            telefone: '(81) 99876-5432',
+            email: 'rafael@email.com',
+          }),
+          responses: {
+            201: resposta('Recebido', {
+              mensagem: 'Recebemos seus dados. Um corretor da BS Seguros vai entrar em contato.',
+            }),
+            400: ref('Validacao'),
+            404: ref('NaoEncontrado'),
+            429: ref('LimiteExcedido'),
           },
         },
       },
