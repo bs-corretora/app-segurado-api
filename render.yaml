@@ -1,0 +1,29 @@
+# Blueprint do Render (Etapa 7). No painel: New > Blueprint > este repositório.
+# Os valores marcados com sync: false o Render pede na hora de criar; nenhum segredo fica aqui.
+services:
+  - type: web
+    name: app-segurado-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    # O Render não tem região na América do Sul; Virginia é a mais perto do Supabase em São Paulo.
+    region: virginia
+    branch: main
+    autoDeploy: true
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # Origens que chamam a API pelo navegador (painel, página pública), separadas por vírgula.
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: COOKIE_SECURE
+        value: "true"
+      # Chave da rota interna de push; o Render gera. Copie para o secret INTERNAL_API_KEY do GitHub.
+      - key: INTERNAL_API_KEY
+        generateValue: true
+      # Swagger ligado em produção para o grupo e o mentor testarem. Desligar antes da entrega final.
+      - key: API_DOCS
+        value: "true"
