@@ -1,0 +1,39 @@
+name: Manter API acordada
+
+# O plano Free do Render desliga o serviço depois de 15 minutos sem requisição, e a primeira
+# chamada depois disso leva perto de um minuto. Este workflow chama o health a cada 10 minutos
+# para o front não pegar a API dormindo durante os testes.
+#
+# Limites conhecidos:
+# - O GitHub não garante o horário do cron; em horário de pico pode atrasar e a API dormir mesmo assim.
+# - Em repositório público o GitHub pausa workflows agendados depois de 60 dias sem commit.
+# - O plano Free do Render dá 750 horas por mês na conta: um serviço acordado o mês todo cabe,
+#   dois não.
+#
+# Endereço: variável API_URL do repositório (Settings > Secrets and variables > Actions > Variables);
+# sem ela, usa o endereço atual do Render.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: manter-acordado
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Chama o health
+        env:
+          API_URL: ${{ vars.API_URL || 'https://app-segurado-api.onrender.com' }}
+        run: |
+          # Até 3 tentativas: se a API estava dormindo, a primeira pode estourar o tempo.
+          for i in 1 2 3; do
+            if curl -fsS -m 90 "$API_URL/api/v1/health"; then echo; exit 0; fi
+            echo "tentativa $i falhou"; sleep 10
+          done
+          exit 1
