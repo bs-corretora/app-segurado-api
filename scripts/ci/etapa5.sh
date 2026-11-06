@@ -105,7 +105,7 @@ confere 'sem resposta → 400' 400 "$(req admin PATCH "/admin/cotacoes/$COT_CARL
 confere 'cotação inexistente → 404' 404 "$(req admin PATCH "/admin/cotacoes/$INEXISTENTE/resposta" '{"resposta":"x"}')"
 notif_antes=$(sql "SELECT count(*) FROM notificacao WHERE perfil_id = '$CARLOS' AND destino_tipo = 'COTACAO' AND destino_id = '$COT_CARLOS'")
 confere 'responder → 200' 200 "$(req admin PATCH "/admin/cotacoes/$COT_CARLOS/resposta" '{"resposta":"Renovação com 10% de desconto.","valor_estimado":2150.5}')"
-confere 'cotação RESPONDIDA com valor e data' 'RESPONDIDA|2150.50|t' "$(sql "SELECT status || '|' || valor_estimado || '|' || (respondida_em IS NOT NULL) FROM cotacao WHERE id = '$COT_CARLOS'")"
+confere 'cotação RESPONDIDA com valor e data' 'RESPONDIDA|2150.50|true' "$(sql "SELECT status || '|' || valor_estimado || '|' || (respondida_em IS NOT NULL) FROM cotacao WHERE id = '$COT_CARLOS'")"
 confere 'Carlos recebeu a notificação da cotação' "$((notif_antes + 1))" "$(sql "SELECT count(*) FROM notificacao WHERE perfil_id = '$CARLOS' AND destino_tipo = 'COTACAO' AND destino_id = '$COT_CARLOS'")"
 confere 'responder de novo → 409' 409 "$(req admin PATCH "/admin/cotacoes/$COT_CARLOS/resposta" '{"resposta":"outra"}')"
 confere '409 não trocou a resposta' 'Renovação com 10% de desconto.' "$(sql "SELECT resposta FROM cotacao WHERE id = '$COT_CARLOS'")"
