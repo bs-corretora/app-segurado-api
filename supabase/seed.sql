@@ -35,13 +35,13 @@ WHERE id IN (
 );
 
 -- Perfis correspondentes (CPFs fictícios com dígito verificador válido).
--- João faz aniversário na data em que o banco é recriado, para a demonstração do RF-08.
+-- João faz aniversário na data em que o banco é recriado (fuso de São Paulo, o mesmo do job), para a demonstração do RF-08.
 -- cliente_desde segue a regra 5.4: menor inicio_vigencia entre as apólices vinculadas.
 
 INSERT INTO public.perfil (id, cpf, nome, telefone, data_nascimento, cliente_desde, papel, codigo_indicacao, aceita_marketing, termos_aceitos_em) VALUES
 ('11111111-1111-1111-1111-111111111111', '11144477735', 'Administrador BS', '81999990000', '1985-05-15', '2023-01-01', 'ADMIN', 'ADM001', false, now()),
 ('22222222-2222-2222-2222-222222222222', '52948220084', 'Maria Souza', '81988881111', '1992-06-20', '2023-06-01', 'SEGURADO', 'MARIA123', true, now()),
-('33333333-3333-3333-3333-333333333333', '22334455628', 'João Silva', '81988882222', (CURRENT_DATE - INTERVAL '38 years')::DATE, '2025-10-15', 'SEGURADO', 'JOAO456', true, now()),
+('33333333-3333-3333-3333-333333333333', '22334455628', 'João Silva', '81988882222', ((now() AT TIME ZONE 'America/Sao_Paulo')::DATE - INTERVAL '38 years')::DATE, '2025-10-15', 'SEGURADO', 'JOAO456', true, now()),
 ('44444444-4444-4444-4444-444444444444', '33445566739', 'Ana Oliveira', '81988883333', '1995-12-10', '2026-02-01', 'SEGURADO', 'ANA789', false, now()),
 ('55555555-5555-5555-5555-555555555555', '44556677840', 'Carlos Pereira', '81988884444', '1980-04-05', '2025-11-20', 'SEGURADO', 'CARLOS101', true, now()),
 ('66666666-6666-6666-6666-666666666666', '55667788950', 'Fernanda Costa', '81988885555', '1998-08-25', '2026-10-01', 'SEGURADO', 'FERN202', true, now());
