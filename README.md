@@ -65,7 +65,7 @@ Ainda não existem (etapas seguintes): `src/app/admin/**` (painel, Etapa 5) e `s
 | 4. Escrita do app (sinistro, cotação, indicação, dispositivos) | #6 | a fazer |
 | 5. Administração (rotas `/admin` e painel) | #7 | a fazer |
 | 6. Jobs e push (aniversário, Expo Push, campanhas) | #8 | a fazer |
-| 7. Documentação e deploy | #9 | Swagger e diagrama prontos; falta Supabase Cloud + Render |
+| 7. Documentação e deploy | #9 | Swagger, diagrama e roteiro de deploy prontos (ver [Deploy](#deploy)) |
 | CI (lint, tipos, build, Docker, banco) | #14 | pronta |
 
 As rotas prontas estão todas no Swagger (`/api/docs`), com exemplo.
@@ -170,11 +170,75 @@ Ver `.env.example`. O repositório nunca recebe o arquivo `.env` com valores.
 | `CORS_ALLOWED_ORIGINS` | não | Origens separadas por vírgula; `*` é recusado |
 | `COOKIE_SECURE` | não | Padrão `true`; `false` só em desenvolvimento sobre HTTP |
 | `SUPABASE_JWT_SECRET` | não | Só se o projeto usar segredo HS256 |
-| `INTERNAL_API_KEY` | não | Rota interna de push (Etapa 6) |
+| `INTERNAL_API_KEY` | não | Rota interna de push (Etapa 6), mínimo 32 caracteres. Vazia: a rota recusa tudo |
+| `EXPO_PUSH_URL` | não | Endpoint do Expo Push; só se troca em teste |
 | `API_DOCS` | não | `true`/`false` liga ou desliga `/api/docs`; vazio = ligado só fora de produção |
 
 Variável obrigatória faltando: a API não sobe e lista o que falta. Variável vazia conta como
 ausente.
+
+## Deploy
+
+A API roda no **Render** (contêiner do `Dockerfile`) e o banco no **Supabase Cloud**. Quem faz
+o deploy é o responsável pelo back-end, com a conta dele; os outros integrantes entram como
+membros da organização no Supabase, sem compartilhar login.
+
+### 1. Supabase Cloud
+
+1. Em [supabase.com](https://supabase.com), crie o projeto (região **South America (São Paulo)**)
+   e guarde a senha do banco num gerenciador de senhas.
+2. Na pasta do repositório:
+
+   ```bash
+   npx supabase@2.121.0 login
+   npx supabase@2.121.0 link --project-ref <ref do projeto>
+   npx supabase@2.121.0 db push --include-seed
+   npx supabase@2.121.0 seed buckets --linked
+   ```
+
+   O `db push` aplica as migrations (inclusive o job de aniversário do pg_cron) e o seed com os
+   usuários de teste. O `seed buckets` envia os PDFs das apólices para o Storage.
+3. Em **Project Settings > API**, copie a **Project URL** e a chave **service_role**. A chave
+   vai só para o Render e para o `.env` de quem precisa, por mensagem privada. Nunca em commit,
+   issue ou grupo.
+
+O plano gratuito pausa o projeto depois de 7 dias sem uso: abra o painel antes de uma
+demonstração.
+
+### 2. Render
+
+1. Em [render.com](https://render.com), entre com o GitHub e dê acesso à organização
+   `bs-corretora`.
+2. **New > Blueprint**, escolha este repositório. O Render lê o `render.yaml` e pede:
+   - `SUPABASE_URL`: a Project URL;
+   - `SUPABASE_SERVICE_ROLE_KEY`: a chave service_role;
+   - `CORS_ALLOWED_ORIGINS`: as origens do painel e da página pública (pode ficar vazio no começo).
+3. Quando o deploy terminar, `https://<serviço>.onrender.com/api/v1/health` deve responder
+   `{"status":"ok","banco":"ok"}` e o Swagger fica em `/api/docs`.
+
+O plano gratuito dorme após 15 minutos sem acesso; o primeiro pedido depois disso leva cerca
+de um minuto. Cada merge na `main` faz um deploy novo.
+
+### 3. Push agendado
+
+No GitHub, em **Settings > Secrets and variables > Actions**, crie `API_URL` (o endereço do
+Render, sem barra no fim) e `INTERNAL_API_KEY` (copie o valor que o Render gerou). O workflow
+`push.yml` passa a chamar a rota de push a cada 15 minutos.
+
+### Front web chamando a API publicada
+
+A sessão é por cookie `SameSite=Strict`, então o navegador só envia o cookie quando a página e
+a API estão no **mesmo site**. Um front web hospedado em outro domínio (Vercel, Netlify) deve
+encaminhar `/api/*` para o Render, em vez de chamar `onrender.com` direto:
+
+- Vercel, `vercel.json`:
+  `{ "rewrites": [{ "source": "/api/:path*", "destination": "https://<serviço>.onrender.com/api/:path*" }] }`
+- Netlify, `netlify.toml`:
+  `[[redirects]] from = "/api/*" to = "https://<serviço>.onrender.com/api/:splat" status = 200`
+- Vite em desenvolvimento, `vite.config.js`: `server: { proxy: { '/api': 'https://<serviço>.onrender.com' } }`
+
+Assim a página e a API ficam na mesma origem: o cookie funciona (inclusive no Safari, que
+bloqueia cookie de terceiros) e não há CORS. O app nativo (Expo) não passa por isso.
 
 ## Problemas comuns
 

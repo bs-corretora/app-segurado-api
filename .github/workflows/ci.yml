@@ -118,6 +118,7 @@ jobs:
           done
           cat api.log
           exit 1
+      - run: bash scripts/ci/etapa4.sh
       - run: bash scripts/ci/etapa6.sh
       - run: bash scripts/ci/etapa5.sh
       - name: Log da API
