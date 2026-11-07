@@ -11,7 +11,7 @@ type Estado = 'carregando' | 'ok' | 'negado' | 'erro';
 // Acrescente cada tela nova aqui quando ela existir, para não haver link para página que não há.
 const MENU = [
   { href: '/admin', rotulo: 'Início' },
-  // { href: '/admin/sinistros', rotulo: 'Sinistros' },
+  { href: '/admin/sinistros', rotulo: 'Sinistros' },
   // { href: '/admin/cotacoes', rotulo: 'Cotações' },
   // { href: '/admin/segurados', rotulo: 'Segurados' },
   // { href: '/admin/indicacoes', rotulo: 'Indicações' },
