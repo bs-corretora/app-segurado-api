@@ -13,7 +13,7 @@ Back-end do App do Segurado (BS Seguros): API REST, painel administrativo web e 
 | Linguagem | TypeScript, Node.js 22 |
 | API e painel administrativo | Next.js (Route Handlers em `src/app/api/v1/**`) |
 | Banco de dados | PostgreSQL gerenciado pelo Supabase |
-| Autenticação | Supabase Auth (e-mail e senha), tokens em cookie HttpOnly emitido pela API |
+| Autenticação | Supabase Auth (e-mail e senha); sessão por `Authorization: Bearer` ou cookie HttpOnly |
 | Arquivos | Supabase Storage, bucket privado `apolices` |
 | Validação | Zod |
 | Documentação da API | OpenAPI 3 gerado dos schemas Zod, Swagger UI |
@@ -43,7 +43,7 @@ Admin web ──┘                  (contêiner)                     (PostgreSQ
 | `src/proxy.ts` | CORS das rotas `/api` (o antigo `middleware` no Next 16) |
 | `src/lib/services` | Regras de negócio e consultas ao banco |
 | `src/lib/schemas` | Schemas Zod das entradas (usados também no OpenAPI) |
-| `src/lib/security` | Sessão por cookie (`exigirSessao`), cookies e rate limit |
+| `src/lib/security` | Sessão por Bearer ou cookie (`exigirSessao`), cookies e rate limit |
 | `src/lib/supabase` | Cliente Supabase do lado do servidor |
 | `src/lib/http`, `src/lib/api-response.ts` | Paginação e formato padrão de resposta e erro |
 | `src/lib/env.ts` | Leitura e validação das variáveis de ambiente |
@@ -51,8 +51,9 @@ Admin web ──┘                  (contêiner)                     (PostgreSQ
 | `supabase/seed.sql`, `supabase/seed/apolices` | Dados fictícios e PDFs de exemplo |
 | `docs/` | Especificação, plano do back-end e [diagrama do banco](docs/banco-de-dados.md) |
 
-Ainda não existem (etapas seguintes): `src/app/admin/**` (painel, Etapa 5) e `src/lib/ai`
-(assistente e triagem com IA, depois do P1).
+Páginas servidas pela própria API: `src/app/indicacao/**` (indicação pública),
+`src/app/redefinir-senha` (link do e-mail de senha) e `src/app/admin/**` (painel, em andamento).
+Ainda não existe: `src/lib/ai` (assistente e triagem com IA, depois do P1).
 
 ## Andamento
 
@@ -62,10 +63,11 @@ Ainda não existem (etapas seguintes): `src/app/admin/**` (painel, Etapa 5) e `s
 | 1. Banco (migrations, seed, Storage) | #3 | pronta |
 | 2. Autenticação e sessão | #4 | pronta |
 | 3. Leitura do app (dashboard, apólices, contatos, notificações) | #5 | pronta |
-| 4. Escrita do app (sinistro, cotação, indicação, dispositivos) | #6 | a fazer |
-| 5. Administração (rotas `/admin` e painel) | #7 | a fazer |
-| 6. Jobs e push (aniversário, Expo Push, campanhas) | #8 | a fazer |
-| 7. Documentação e deploy | #9 | Swagger, diagrama e roteiro de deploy prontos (ver [Deploy](#deploy)) |
+| 4. Escrita do app (sinistro, cotação, indicação, dispositivos) | #6 | pronta |
+| 5. Administração (rotas `/admin` e painel) | #7 | rotas prontas; telas do painel em andamento |
+| 6. Jobs e push (aniversário, Expo Push, campanhas) | #8 | pronta |
+| 7. Documentação e deploy | #9 | pronta, no ar em https://app-segurado-api.onrender.com |
+| Fechamento: login por Bearer, troca e redefinição de senha, rotas P2 | #32, #33, #34 | pronta |
 | CI (lint, tipos, build, Docker, banco) | #14 | pronta |
 
 As rotas prontas estão todas no Swagger (`/api/docs`), com exemplo.
@@ -225,11 +227,17 @@ No GitHub, em **Settings > Secrets and variables > Actions**, crie `API_URL` (o 
 Render, sem barra no fim) e `INTERNAL_API_KEY` (copie o valor que o Render gerou). O workflow
 `push.yml` passa a chamar a rota de push a cada 15 minutos.
 
-### Front web chamando a API publicada
+### Front chamando a API publicada
 
-A sessão é por cookie `SameSite=Strict`, então o navegador só envia o cookie quando a página e
-a API estão no **mesmo site**. Um front web hospedado em outro domínio (Vercel, Netlify) deve
-encaminhar `/api/*` para o Render, em vez de chamar `onrender.com` direto:
+O caminho padrão é o **Bearer**: o login devolve `access_token` e `refresh_token` no corpo, o
+front guarda os dois e manda `Authorization: Bearer <access_token>` em toda chamada. Quando der
+401, chama `POST /auth/refresh` com `{"refresh_token": "..."}` e repete. O endereço do front
+precisa estar em `CORS_ALLOWED_ORIGINS` no Render. Guia completo para o front:
+[docs/integracao-front.md](docs/integracao-front.md).
+
+Alternativa sem token no front: a sessão por cookie é `SameSite=Strict`, então o navegador só
+envia o cookie quando a página e a API estão no **mesmo site**. Um front hospedado em outro
+domínio pode encaminhar `/api/*` para o Render em vez de chamar `onrender.com` direto:
 
 - Vercel, `vercel.json`:
   `{ "rewrites": [{ "source": "/api/:path*", "destination": "https://<serviço>.onrender.com/api/:path*" }] }`

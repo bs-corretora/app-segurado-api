@@ -2,12 +2,15 @@ import { type NextRequest } from 'next/server';
 import { supabaseAuth } from '@/lib/supabase/server';
 import { authIndisponivel } from '@/lib/supabase/erros';
 import { ok, erro } from '@/lib/api-response';
-import { REFRESH_COOKIE, gravarSessao, limparSessao } from '@/lib/security/cookies';
+import { REFRESH_COOKIE, gravarSessao, limparSessao, tokensDoCorpo } from '@/lib/security/cookies';
 import { comLog } from '@/lib/http/log';
 
-// POST /api/v1/auth/refresh — pública (seção 6.3). Renova a sessão pelo cookie de refresh.
+// POST /api/v1/auth/refresh — pública (seção 6.3). Renova a sessão pelo cookie de refresh ou, para
+// o front em outro domínio, pelo `refresh_token` no corpo. Devolve os tokens novos no corpo também.
 async function post(req: NextRequest) {
-  const refreshToken = req.cookies.get(REFRESH_COOKIE)?.value;
+  const corpo = (await req.json().catch(() => null)) as { refresh_token?: unknown } | null;
+  const doCorpo = typeof corpo?.refresh_token === 'string' ? corpo.refresh_token : undefined;
+  const refreshToken = doCorpo || req.cookies.get(REFRESH_COOKIE)?.value;
   if (!refreshToken) return erro(401, 'NAO_AUTENTICADO', 'Sessão ausente ou expirada');
 
   const { data, error } = await supabaseAuth().auth.refreshSession({
@@ -22,7 +25,7 @@ async function post(req: NextRequest) {
     return limparSessao(erro(401, 'NAO_AUTENTICADO', 'Sessão ausente ou expirada'));
   }
 
-  return gravarSessao(ok({ renovada: true }), data.session);
+  return gravarSessao(ok({ renovada: true, ...tokensDoCorpo(data.session) }), data.session);
 }
 
 export const POST = comLog(post);
