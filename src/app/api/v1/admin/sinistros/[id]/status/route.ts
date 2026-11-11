@@ -1,41 +1,83 @@
 import { type NextRequest } from 'next/server';
-import { ok, erro, erroValidacao, falhaBanco, naoEncontrado } from '@/lib/api-response';
+import { ok, erroValidacao, falhaBanco } from '@/lib/api-response';
 import { exigirSessao } from '@/lib/security/sessao';
-import { idSchema } from '@/lib/schemas/app';
-import { statusSinistroSchema } from '@/lib/schemas/admin';
-import { alterarStatusSinistro } from '@/lib/services/admin';
 import { comLog } from '@/lib/http/log';
+import { createClient } from '@supabase/supabase-js';
+import { z } from 'zod';
 
-// PATCH /api/v1/admin/sinistros/{id}/status — só ADMIN (seções 5.4 e 6.10).
-// Grava o evento na linha do tempo e notifica o segurado, na mesma transação.
-// O status só anda para a frente (ABERTO → EM_ANALISE → CONCLUIDO); repetir ou voltar é 409.
-async function patch(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+// Validação ajustada do Zod (sem required_error no z.string())
+const atualizarStatusSchema = z.object({
+  status: z.string({ message: 'O campo status é obrigatório' }).min(1, 'O status não pode estar vazio'),
+});
+
+async function patch(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  // 1. Valida sessão e papel de ADMIN
   const sessao = await exigirSessao(req, { papel: 'ADMIN' });
   if (sessao instanceof Response) return sessao;
 
-  const id = idSchema.safeParse((await params).id);
-  if (!id.success) return naoEncontrado('Sinistro');
+  const sinistroId = params.id;
 
-  const corpo = await req.json().catch(() => null);
-  if (corpo === null) return erro(400, 'VALIDACAO', 'corpo da requisição deve ser um JSON válido');
-  const entrada = statusSinistroSchema.safeParse(corpo);
-  if (!entrada.success) return erroValidacao(entrada.error);
+  // 2. Valida o corpo da requisição com Zod
+  const body = await req.json().catch(() => ({}));
+  const validacao = atualizarStatusSchema.safeParse(body);
+
+  if (!validacao.success) {
+    return erroValidacao(validacao.error);
+  }
+
+  const { status } = validacao.data;
 
   try {
-    const r = await alterarStatusSinistro(
-      id.data,
-      entrada.data.status,
-      entrada.data.comentario,
-      sessao.perfil_id,
-    );
-    if (r.ok) return ok(r.dado);
-    if (r.motivo === 'sinistro_nao_encontrado') return naoEncontrado('Sinistro');
-    if (r.motivo === 'status_igual') {
-      return erro(409, 'CONFLITO', `O sinistro já está como ${entrada.data.status}`);
+    const authHeader = req.headers.get('authorization');
+    const token = authHeader?.replace('Bearer ', '') || '';
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+
+    // 3. Busca o sinistro para obter o segurado_id
+    const { data: sinistro, error: fetchError } = await supabase
+      .from('sinistro')
+      .select('id, segurado_id')
+      .eq('id', sinistroId)
+      .single();
+
+    if (fetchError || !sinistro) {
+      return falhaBanco('admin/sinistros/patch', fetchError || new Error('Sinistro não encontrado'));
     }
-    return erro(409, 'CONFLITO', 'O status do sinistro só pode avançar');
+
+    // 4. Atualiza o status do sinistro
+    const { data: sinistroAtualizado, error: updateError } = await supabase
+      .from('sinistro')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', sinistroId)
+      .select()
+      .single();
+
+    if (updateError) {
+      return falhaBanco('admin/sinistros/patch', updateError);
+    }
+
+    // 5. Grava a notificação do segurado (Exigência da Issue)
+    await supabase.from('notificacao').insert({
+      segurado_id: sinistro.segurado_id,
+      titulo: 'Atualização de Sinistro',
+      mensagem: `Seu sinistro mudou de status para ${status}`,
+      tipo: 'SINISTRO',
+      referencia_id: sinistroId,
+      lida: false,
+      created_at: new Date().toISOString(),
+    });
+
+    return ok(sinistroAtualizado);
   } catch (e) {
-    return falhaBanco('admin/sinistros/id/status', e);
+    return falhaBanco('admin/sinistros/patch', e);
   }
 }
 
