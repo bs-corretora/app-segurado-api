@@ -1,7 +1,7 @@
 import { type NextRequest } from 'next/server';
 import { supabaseAuth } from '@/lib/supabase/server';
 import { ok, erro, erroValidacao } from '@/lib/api-response';
-import { gravarSessao } from '@/lib/security/cookies';
+import { gravarSessao, tokensDoCorpo } from '@/lib/security/cookies';
 import { ipDe, limitar } from '@/lib/security/rate-limit';
 import { cadastroSchema } from '@/lib/schemas/conta';
 import { cadastrar } from '@/lib/services/cadastro';
@@ -39,7 +39,11 @@ async function post(req: NextRequest) {
       password: entrada.data.senha,
     });
     const resposta = ok(
-      { id: resultado.perfil_id, apolices_vinculadas: resultado.apolices_vinculadas },
+      {
+        id: resultado.perfil_id,
+        apolices_vinculadas: resultado.apolices_vinculadas,
+        ...(data.session ? tokensDoCorpo(data.session) : {}),
+      },
       201,
     );
     // Se o login automático falhar, a conta existe: o app manda para o login.

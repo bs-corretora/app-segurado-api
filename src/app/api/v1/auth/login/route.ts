@@ -2,7 +2,7 @@ import { type NextRequest } from 'next/server';
 import { supabaseAuth } from '@/lib/supabase/server';
 import { authIndisponivel } from '@/lib/supabase/erros';
 import { ok, erro, erroValidacao } from '@/lib/api-response';
-import { gravarSessao } from '@/lib/security/cookies';
+import { gravarSessao, tokensDoCorpo } from '@/lib/security/cookies';
 import { ipDe, limitar } from '@/lib/security/rate-limit';
 import { loginSchema } from '@/lib/schemas/conta';
 import { comLog } from '@/lib/http/log';
@@ -32,8 +32,9 @@ async function post(req: NextRequest) {
     return erro(401, 'NAO_AUTENTICADO', 'E-mail ou senha inválidos');
   }
 
-  // Tokens só em cookie, nunca no corpo (seção 7.1).
-  return gravarSessao(ok({ id: data.user.id, email: data.user.email }), data.session);
+  // Cookie para quem está no mesmo domínio; tokens no corpo para o front em outro (seção 7.1).
+  const corpoResposta = { id: data.user.id, email: data.user.email, ...tokensDoCorpo(data.session) };
+  return gravarSessao(ok(corpoResposta), data.session);
 }
 
 export const POST = comLog(post);

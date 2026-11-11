@@ -8,7 +8,20 @@ const ACCESS_PATH = '/api';
 const REFRESH_PATH = '/api/v1/auth/refresh';
 const REFRESH_MAX_AGE = 60 * 60 * 24 * 30; // 30 dias
 
-type Sessao = { access_token: string; refresh_token: string; expires_in: number };
+type Sessao = { access_token: string; refresh_token: string; expires_in: number; expires_at?: number };
+
+/**
+ * Os tokens também vão no corpo (seção 7.1): front em outro domínio não recebe o cookie
+ * (SameSite=Strict), então guarda o access_token e manda em `Authorization: Bearer`.
+ */
+export function tokensDoCorpo(sessao: Sessao) {
+  return {
+    access_token: sessao.access_token,
+    refresh_token: sessao.refresh_token,
+    expires_in: sessao.expires_in,
+    expires_at: sessao.expires_at ?? null,
+  };
+}
 
 export function gravarSessao(res: NextResponse, sessao: Sessao) {
   const secure = getEnv().COOKIE_SECURE;
