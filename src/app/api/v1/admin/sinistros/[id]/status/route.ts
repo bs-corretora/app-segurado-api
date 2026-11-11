@@ -5,20 +5,20 @@ import { comLog } from '@/lib/http/log';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 
-// Validação ajustada do Zod (sem required_error no z.string())
 const atualizarStatusSchema = z.object({
   status: z.string({ message: 'O campo status é obrigatório' }).min(1, 'O status não pode estar vazio'),
 });
 
 async function patch(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   // 1. Valida sessão e papel de ADMIN
   const sessao = await exigirSessao(req, { papel: 'ADMIN' });
   if (sessao instanceof Response) return sessao;
 
-  const sinistroId = params.id;
+  // Await nos params exigido pelo Next.js 15+
+  const { id: sinistroId } = await params;
 
   // 2. Valida o corpo da requisição com Zod
   const body = await req.json().catch(() => ({}));
@@ -64,7 +64,7 @@ async function patch(
       return falhaBanco('admin/sinistros/patch', updateError);
     }
 
-    // 5. Grava a notificação do segurado (Exigência da Issue)
+    // 5. Grava a notificação do segurado
     await supabase.from('notificacao').insert({
       segurado_id: sinistro.segurado_id,
       titulo: 'Atualização de Sinistro',
