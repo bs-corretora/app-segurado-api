@@ -1,8 +1,8 @@
 # Integração do front com a API
 
 Guia para quem está ligando as telas do app do segurado na API. O back-end está pronto e
-publicado; aqui vai o que você precisa para trocar os dados de exemplo (`src/data.js`) por
-chamadas de verdade.
+publicado; aqui vai o que você precisa para trocar os dados de exemplo por chamadas de verdade
+no app Expo.
 
 ## 1. Onde a API está
 
@@ -39,7 +39,7 @@ A API usa **token Bearer**:
 
 1. `POST /auth/login` com `{ "email": "...", "senha": "..." }`.
 2. A resposta traz `access_token`, `refresh_token`, `expires_in` (3600 segundos) e `expires_at`.
-3. Guarde os dois tokens: `localStorage` na web, `AsyncStorage` ou SecureStore no React Native.
+3. Guarde os dois tokens no aparelho com o **`expo-secure-store`** (fica criptografado).
 4. Em toda chamada, mande o cabeçalho `Authorization: Bearer <access_token>`.
 5. O `access_token` vale 1 hora. Quando uma chamada voltar **401**, chame
    `POST /auth/refresh` com `{ "refresh_token": "..." }`. A resposta traz tokens **novos**:
@@ -49,21 +49,39 @@ A API usa **token Bearer**:
 
 O cadastro (`POST /auth/cadastro`) também já devolve os tokens, então a pessoa entra direto.
 
-### Código pronto para copiar
+Ao abrir o app, se houver token guardado, chame `GET /me`. Se responder 200, a pessoa já está
+logada e pode ir direto para o Início.
 
-Um arquivo `src/api.js` que faz tudo isso, inclusive a renovação automática:
+### Código pronto para copiar (Expo)
+
+Instale o armazenamento seguro:
+
+```bash
+npx expo install expo-secure-store
+```
+
+Crie `src/api.js`. Ele guarda os tokens, manda o Bearer, renova sozinho quando o token vence e
+avisa o app quando a sessão acabou:
 
 ```js
+import * as SecureStore from 'expo-secure-store';
+
 const API = 'https://app-segurado-api.onrender.com/api/v1';
 
-const guardar = (t) => {
-  localStorage.setItem('access_token', t.access_token);
-  localStorage.setItem('refresh_token', t.refresh_token);
-};
-const limpar = () => {
-  localStorage.removeItem('access_token');
-  localStorage.removeItem('refresh_token');
-};
+async function guardar(t) {
+  await SecureStore.setItemAsync('access_token', t.access_token);
+  await SecureStore.setItemAsync('refresh_token', t.refresh_token);
+}
+async function limpar() {
+  await SecureStore.deleteItemAsync('access_token');
+  await SecureStore.deleteItemAsync('refresh_token');
+}
+
+// O app registra aqui o que fazer quando a sessão acaba (ex.: ir para o login).
+let aoSairDaSessao = () => {};
+export function quandoSessaoAcabar(fn) {
+  aoSairDaSessao = fn;
+}
 
 export class ErroApi extends Error {
   constructor(status, corpo) {
@@ -76,7 +94,7 @@ export class ErroApi extends Error {
 
 async function enviar(caminho, { method = 'GET', corpo } = {}) {
   const headers = {};
-  const token = localStorage.getItem('access_token');
+  const token = await SecureStore.getItemAsync('access_token');
   if (token) headers.Authorization = `Bearer ${token}`;
   if (corpo !== undefined) headers['Content-Type'] = 'application/json';
   return fetch(API + caminho, {
@@ -87,7 +105,7 @@ async function enviar(caminho, { method = 'GET', corpo } = {}) {
 }
 
 async function renovar() {
-  const refresh_token = localStorage.getItem('refresh_token');
+  const refresh_token = await SecureStore.getItemAsync('refresh_token');
   if (!refresh_token) return false;
   const r = await fetch(API + '/auth/refresh', {
     method: 'POST',
@@ -95,19 +113,20 @@ async function renovar() {
     body: JSON.stringify({ refresh_token }),
   });
   if (!r.ok) return false;
-  guardar(await r.json());
+  await guardar(await r.json());
   return true;
 }
 
-/** api('/dashboard'), api('/sinistros', { method: 'POST', corpo: {...} }) */
+/** await api('/dashboard'), await api('/sinistros', { method: 'POST', corpo: {...} }) */
 export async function api(caminho, opcoes) {
+  const deAuth = caminho.startsWith('/auth/');
   let r = await enviar(caminho, opcoes);
-  if (r.status === 401 && !caminho.startsWith('/auth/') && (await renovar())) {
+  if (r.status === 401 && !deAuth && (await renovar())) {
     r = await enviar(caminho, opcoes);
   }
-  if (r.status === 401 && !caminho.startsWith('/auth/')) {
-    limpar();
-    window.location.href = '/'; // ou navegar para a tela de login
+  if (r.status === 401 && !deAuth) {
+    await limpar();
+    aoSairDaSessao();
   }
   if (r.status === 204) return null;
   const corpo = await r.json().catch(() => null);
@@ -117,17 +136,45 @@ export async function api(caminho, opcoes) {
 
 export async function entrar(email, senha) {
   const r = await api('/auth/login', { method: 'POST', corpo: { email, senha } });
-  guardar(r);
+  await guardar(r);
   return r;
 }
 
 export async function sair() {
   await api('/auth/logout', { method: 'POST' }).catch(() => null);
-  limpar();
+  await limpar();
 }
 ```
 
-No React Native, troque `localStorage` por `AsyncStorage`, que é assíncrono (use `await`).
+Como usar numa tela:
+
+```js
+import { router } from 'expo-router';
+import { api, entrar, quandoSessaoAcabar, ErroApi } from '../src/api';
+
+// uma vez, no _layout.jsx raiz:
+quandoSessaoAcabar(() => router.replace('/login'));
+
+// na tela de login:
+try {
+  await entrar(email, senha);
+  router.replace('/inicio');
+} catch (e) {
+  if (e instanceof ErroApi && e.status === 401) setErro('E-mail ou senha inválidos');
+  else setErro(e.message);
+}
+
+// na tela de início:
+const dados = await api('/dashboard');
+```
+
+Sem expo-router, troque `router.replace` pela navegação que o app usa.
+
+**Testar no celular:** a API é HTTPS pública, então funciona direto no Expo Go, sem IP local nem
+túnel.
+
+**Versão web (se alguém rodar no navegador):** o mesmo código serve trocando o `SecureStore`
+por `localStorage` (síncrono, sem `await`). No navegador entra o CORS: ver seção 6.
 
 ## 3. Rotas por tela
 
@@ -159,7 +206,7 @@ resposta está no Swagger, com exemplo real.
 | Editar dados | `PATCH /me` | só `telefone` e `aceita_marketing` |
 | Trocar senha | `PATCH /me/senha` `{senha_atual, nova_senha}` | 204; senha atual errada dá 400 |
 | Sair | `POST /auth/logout` | |
-| Push (só app nativo) | `POST /dispositivos`, `DELETE /dispositivos/{token}` | site não recebe push |
+| Push | `POST /dispositivos`, `DELETE /dispositivos/{token}` | ver seção 6 |
 
 Sugestão de ordem para ligar: **login → início → apólices**. Com isso funcionando, o resto segue
 o mesmo padrão.
@@ -198,18 +245,31 @@ o mesmo padrão.
 Limite: o e-mail gratuito do Supabase manda poucos e-mails por hora, para o projeto inteiro.
 Teste com moderação; se não chegar, espere e tente mais tarde.
 
-## 6. CORS: avise o endereço do seu front
+## 6. Push no app
 
-O navegador só deixa o front chamar a API se o endereço do front estiver liberado no servidor.
-Já liberados:
+Depois do login, o app registra o aparelho para receber notificação:
 
-- `http://localhost:5173` (Vite)
-- `http://localhost:3000`
+1. Pegue o token com `expo-notifications`
+   (`(await Notifications.getExpoPushTokenAsync({ projectId })).data`).
+2. Mande `POST /dispositivos` com
+   `{ "push_token": "ExponentPushToken[...]", "plataforma": "ANDROID" }` (ou `"IOS"`).
+3. No logout, antes de chamar `sair()`, mande `DELETE /dispositivos/{push_token}`.
 
-Quando publicar o front (Vercel, Netlify, GitHub Pages), mande o endereço para o Everson
-liberar. Sem isso, o navegador mostra erro de CORS no console e a chamada nem chega à API.
+A API manda push quando o sinistro muda de status, a cotação é respondida, no aniversário e nas
+campanhas. As mesmas mensagens aparecem em `GET /notificacoes`, então a tela de notificações
+funciona mesmo sem push.
 
-## 7. Painel administrativo
+Atenção: desde o SDK 53, o Expo Go no Android não recebe push remoto; para testar push é preciso
+um development build. O resto do app funciona normalmente no Expo Go.
+
+## 7. CORS (só para a versão web)
+
+O app nativo não passa por CORS. Isso só importa se alguém rodar o app no navegador
+(`npx expo start --web`): aí o navegador só deixa chamar a API se o endereço estiver liberado
+no servidor. Já liberados: `http://localhost:8081` (Expo web), `http://localhost:5173` e
+`http://localhost:3000`. Para publicar uma versão web, mandem o endereço ao Everson.
+
+## 8. Painel administrativo
 
 O painel do administrador não faz parte do app: fica dentro do repositório da API
 (`src/app/admin`), no mesmo endereço, e usa cookie em vez de Bearer. As rotas estão no Swagger,
