@@ -444,15 +444,25 @@ Executada apenas no ambiente de desenvolvimento (`supabase/seed.sql`):
 |---|---|---|
 | POST | `/auth/cadastro` | Pública. Cria conta e perfil, vincula apólices e inicia a sessão |
 | POST | `/auth/login` | Pública. `{email, senha}`; inicia a sessão |
-| POST | `/auth/refresh` | Pública. Renova a sessão a partir do cookie de refresh |
+| POST | `/auth/refresh` | Pública. Renova a sessão a partir do `refresh_token` no corpo ou do cookie de refresh |
 | POST | `/auth/logout` | Encerra a sessão e remove os cookies |
-| POST | `/auth/esqueci-senha` | Pública. Dispara o e-mail de redefinição |
+| POST | `/auth/esqueci-senha` | Pública. Dispara o e-mail de redefinição; o link abre `/redefinir-senha` |
+| POST | `/auth/redefinir-senha` | Grava a senha nova; exige o token do link do e-mail em `Authorization: Bearer` |
 | GET | `/me` | Perfil do usuário autenticado |
 | PATCH | `/me` | Atualiza `telefone` e `aceita_marketing` |
+| PATCH | `/me/senha` | Troca de senha; `{senha_atual, nova_senha}` |
 
 Validações do cadastro: dígito verificador do CPF; unicidade de CPF e e-mail; senha com no
 mínimo 8 caracteres; idade mínima de 18 anos; aceite dos termos. Conflito de CPF ou e-mail
 retorna mensagem genérica, sem indicar qual dado já existe.
+
+Login, cadastro e refresh devolvem no corpo `access_token`, `refresh_token`, `expires_in` e
+`expires_at`, além de gravar os cookies (seção 7.1).
+
+Redefinição de senha: o Supabase Auth envia o e-mail com um link que, depois de conferido, abre
+a página `/redefinir-senha` da API com o token no fragmento da URL. A página chama
+`POST /auth/redefinir-senha`, que só aceita token nascido desse link (`amr` = `otp`) e encerra
+todas as sessões da conta. O endereço precisa constar nas Redirect URLs do Supabase Auth.
 
 ### 6.4 Dashboard
 
@@ -483,6 +493,7 @@ retorna mensagem genérica, sem indicar qual dado já existe.
 |---|---|---|
 | POST | `/cotacoes` | Registro de pedido |
 | GET | `/cotacoes` | Pedidos do usuário, com resposta quando houver |
+| GET | `/cotacoes/{id}` | Detalhe do pedido, com resposta quando houver |
 
 ### 6.8 Indicação
 
@@ -548,21 +559,30 @@ A especificação é gerada a partir dos schemas Zod usados na validação das r
 
 ### 7.1 Autenticação e sessão (RNF-01)
 
-- O Supabase Auth emite access token (JWT, validade de 1 h) e refresh token. A API não
-  retorna os tokens no corpo da resposta; ambos são gravados em cookies:
+- O Supabase Auth emite access token (JWT, validade de 1 h) e refresh token. A API aceita
+  a sessão de duas formas:
+  - **`Authorization: Bearer <access_token>`**: para o app e para qualquer front servido em
+    outro domínio. Login, cadastro e refresh devolvem os tokens no corpo; o cliente guarda os
+    dois e renova com `POST /auth/refresh` mandando `{refresh_token}`.
+  - **Cookies HttpOnly**: para as páginas servidas pela própria API (painel, Swagger, página
+    pública), gravados pelas mesmas rotas:
 
 | Cookie | Path | Atributos |
 |---|---|---|
 | `access_token` | `/api` | `HttpOnly`, `Secure`, `SameSite=Strict` |
 | `refresh_token` | `/api/v1/auth/refresh` | `HttpOnly`, `Secure`, `SameSite=Strict` |
 
+- Com `SameSite=Strict`, o navegador não envia esses cookies para a API a partir de outro
+  domínio; por isso o front fora do domínio da API usa o Bearer.
+- Havendo cabeçalho `Authorization`, ele vale; senão, o cookie.
 - O atributo `HttpOnly` impede a leitura dos tokens por script, mitigando exfiltração via XSS.
+  Tokens guardados pelo front (Bearer) ficam expostos a XSS no front; a validade curta do
+  access token limita o dano.
 - A API valida o JWT a cada requisição (segredo do projeto ou JWKS, conforme a configuração
   de chaves do Supabase).
 - `Secure` é controlado por `COOKIE_SECURE`: `false` apenas em desenvolvimento local sobre HTTP.
 - Hash de senha (bcrypt) sob responsabilidade do Supabase Auth.
-- Cliente React Native: o `fetch` utiliza o cookie store nativo da plataforma; as requisições
-  devem usar `credentials: 'include'`.
+- Cliente React Native ou web em outro domínio: usar o Bearer.
 
 ### 7.2 Rate limit (RNF-02)
 
@@ -580,7 +600,8 @@ PostgreSQL (suportado pela mesma biblioteca).
 ### 7.3 CORS (RNF-03)
 
 - Origens permitidas definidas em `CORS_ALLOWED_ORIGINS`; curinga `*` não é aceito.
-- `Access-Control-Allow-Credentials: true`.
+- `Access-Control-Allow-Credentials: true`; cabeçalhos liberados: `Content-Type` e
+  `Authorization`.
 - A política é aplicada por navegadores (painel administrativo e página pública); clientes
   nativos não são sujeitos a CORS.
 
