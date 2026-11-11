@@ -207,3 +207,46 @@ export async function alterarContato(id: string, c: AlterarContato) {
   if (r.error) throw r.error;
   return r.data;
 }
+
+// ----- Resumo (GET /admin/resumo, P2) ---------------------------------------------------------
+
+const STATUS_SINISTRO = ['ABERTO', 'EM_ANALISE', 'CONCLUIDO'] as const;
+const STATUS_COTACAO = ['RECEBIDA', 'EM_ANALISE', 'RESPONDIDA'] as const;
+const STATUS_INDICACAO = ['NOVA', 'CONTATADA', 'CONVERTIDA'] as const;
+
+/** Contagem com head: true (não traz linhas). */
+async function contar(tabela: string, filtro: Record<string, string> = {}) {
+  let q = supabaseAdmin().from(tabela).select('id', { count: 'exact', head: true });
+  for (const [coluna, valor] of Object.entries(filtro)) q = q.eq(coluna, valor);
+  const { count, error } = await q;
+  if (error) throw error;
+  return count ?? 0;
+}
+
+async function porStatus<S extends string>(tabela: string, valores: readonly S[]) {
+  const contagens = await Promise.all(valores.map((status) => contar(tabela, { status })));
+  return Object.fromEntries(valores.map((s, i) => [s, contagens[i]])) as Record<S, number>;
+}
+
+/** Números da página inicial do painel. */
+export async function resumo() {
+  const [segurados, apolicesAtivas, sinistros, cotacoes, indicacoes] = await Promise.all([
+    contar('perfil', { papel: 'SEGURADO' }),
+    contar('apolice', { status: 'ATIVA' }),
+    porStatus('sinistro', STATUS_SINISTRO),
+    porStatus('cotacao', STATUS_COTACAO),
+    porStatus('indicacao', STATUS_INDICACAO),
+  ]);
+  return {
+    segurados,
+    apolices_ativas: apolicesAtivas,
+    sinistros,
+    cotacoes,
+    indicacoes,
+    pendencias: {
+      sinistros_abertos: sinistros.ABERTO,
+      cotacoes_sem_resposta: cotacoes.RECEBIDA + cotacoes.EM_ANALISE,
+      indicacoes_novas: indicacoes.NOVA,
+    },
+  };
+}

@@ -30,6 +30,18 @@ export async function listarCotacoes(perfilId: string, pag: Paginacao) {
   return { itens: r.data, total: r.count ?? 0 };
 }
 
+/** Uma cotação do usuário. null = não existe ou é de outro perfil (a rota responde 404). */
+export async function buscarCotacao(perfilId: string, id: string) {
+  const { data, error } = await supabaseAdmin()
+    .from('cotacao')
+    .select(COLUNAS_COTACAO)
+    .eq('perfil_id', perfilId)
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 /** Código de indicação do usuário. */
 export async function codigoDeIndicacao(perfilId: string) {
   const { data, error } = await supabaseAdmin()
