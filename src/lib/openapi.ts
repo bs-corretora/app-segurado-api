@@ -120,7 +120,7 @@ export function especificacaoOpenApi() {
     openapi: '3.1.0',
     info: {
       title: 'App do Segurado — API',
-      version: '0.4.0',
+      version: '0.5.0',
       description:
         'API do App do Segurado. Duas formas de sessão: (1) o front em outro domínio guarda o ' +
         '`access_token` que o login devolve e manda `Authorization: Bearer <token>` (botão Authorize); ' +
