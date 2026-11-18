@@ -10,3 +10,5 @@ const nextConfig: NextConfig = {
     return [{ source: "/", destination: "/api/docs", permanent: false }];
   },
 };
+
+export default nextConfig;
