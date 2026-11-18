@@ -20,7 +20,7 @@ jobs:
     name: Segredos no histórico (Gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       # Imagem oficial em vez da gitleaks-action, que exige licença em repositório de organização.
@@ -33,7 +33,7 @@ jobs:
     name: Dependências vulneráveis (npm audit)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
