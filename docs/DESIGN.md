@@ -1,7 +1,7 @@
 # Visual das telas servidas pela API
 
 Vale para as páginas que o Next.js deste repositório renderiza: a página pública de indicação
-(`/indicacao/{codigo}`) e, depois, o painel administrativo (`/admin`). O app do segurado tem o
+(`/indicacao/{codigo}`), a página de nova senha (`/redefinir-senha`, mesmo cartão e mesmos estados) e, depois, o painel administrativo (`/admin`). O app do segurado tem o
 visual dele no repositório `app-segurado-mobile`; daqui só se reaproveita a paleta.
 
 ## Cores

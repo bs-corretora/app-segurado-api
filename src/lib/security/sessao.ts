@@ -4,7 +4,7 @@ import { erro } from '@/lib/api-response';
 import { ACCESS_COOKIE } from './cookies';
 import { limitar } from './rate-limit';
 
-export type Usuario = { id: string; email: string | undefined };
+export type Usuario = { id: string; email: string | undefined; amr: string[] };
 
 export type Papel = 'SEGURADO' | 'ADMIN';
 
@@ -12,18 +12,35 @@ export type Papel = 'SEGURADO' | 'ADMIN';
 export type Sessao = { perfil_id: string; papel: Papel; email: string | undefined };
 
 /**
- * Lê o cookie access_token e valida o JWT no Supabase (getClaims usa JWKS
- * quando o projeto tem chaves assimétricas, ou consulta o Auth caso contrário).
- * Retorna null se não houver sessão válida → a rota responde 401.
+ * Token de acesso da requisição (seção 7.1). Vale o cabeçalho `Authorization: Bearer`, usado pelo
+ * app e por qualquer front em outro domínio; sem ele, o cookie `access_token` (painel, Swagger e
+ * página pública, que rodam no mesmo endereço da API).
  */
-export async function usuarioAutenticado(req: NextRequest): Promise<Usuario | null> {
-  const token = req.cookies.get(ACCESS_COOKIE)?.value;
-  if (!token) return null;
+export function tokenDe(req: NextRequest): string | null {
+  const cabecalho = req.headers.get('authorization')?.match(/^Bearer\s+(\S+)\s*$/i);
+  if (cabecalho) return cabecalho[1];
+  return req.cookies.get(ACCESS_COOKIE)?.value ?? null;
+}
 
+/**
+ * Valida o JWT no Supabase (getClaims usa JWKS quando o projeto tem chaves assimétricas, ou
+ * consulta o Auth caso contrário). `amr` diz como a sessão nasceu: `password` no login,
+ * `otp` no link de redefinição de senha.
+ */
+export async function usuarioDoToken(token: string): Promise<Usuario | null> {
   const { data, error } = await supabaseAdmin().auth.getClaims(token);
   if (error || !data?.claims?.sub) return null;
 
-  return { id: data.claims.sub, email: data.claims.email as string | undefined };
+  const amr = Array.isArray(data.claims.amr)
+    ? data.claims.amr.map((m: { method?: string } | string) => (typeof m === 'string' ? m : (m.method ?? '')))
+    : [];
+  return { id: data.claims.sub, email: data.claims.email as string | undefined, amr };
+}
+
+/** Usuário da requisição, ou null se não houver sessão válida → a rota responde 401. */
+export async function usuarioAutenticado(req: NextRequest): Promise<Usuario | null> {
+  const token = tokenDe(req);
+  return token ? usuarioDoToken(token) : null;
 }
 
 /**

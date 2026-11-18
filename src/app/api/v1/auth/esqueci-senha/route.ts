@@ -3,10 +3,13 @@ import { supabaseAuth } from '@/lib/supabase/server';
 import { erro, erroValidacao } from '@/lib/api-response';
 import { ipDe, limitar } from '@/lib/security/rate-limit';
 import { esqueciSenhaSchema } from '@/lib/schemas/conta';
+import { baseUrl } from '@/lib/http/base-url';
 import { comLog } from '@/lib/http/log';
 
 // POST /api/v1/auth/esqueci-senha — pública (seção 6.3). Rate limit: 3/min por IP (7.2).
 // Responde 204 sempre que a entrada é válida: não revela se o e-mail tem conta.
+// O link do e-mail abre /redefinir-senha nesta mesma API (o endereço precisa estar na lista de
+// Redirect URLs do Supabase Auth, senão o Supabase manda para o Site URL).
 async function post(req: NextRequest) {
   const bloqueio = await limitar('esqueciSenha', ipDe(req));
   if (bloqueio) return bloqueio;
@@ -17,7 +20,9 @@ async function post(req: NextRequest) {
   const entrada = esqueciSenhaSchema.safeParse(corpo);
   if (!entrada.success) return erroValidacao(entrada.error);
 
-  const { error } = await supabaseAuth().auth.resetPasswordForEmail(entrada.data.email);
+  const { error } = await supabaseAuth().auth.resetPasswordForEmail(entrada.data.email, {
+    redirectTo: `${baseUrl(req)}/redefinir-senha`,
+  });
   if (error) console.error('[esqueci-senha]', error.message);
 
   return new NextResponse(null, { status: 204 });

@@ -22,6 +22,23 @@ export const loginSchema = z.object({
 
 export const esqueciSenhaSchema = z.object({ email });
 
+const novaSenha = z
+  .string({ error: 'nova_senha obrigatória' })
+  .min(8, 'senha deve ter no mínimo 8 caracteres')
+  .max(72, 'senha deve ter no máximo 72 caracteres');
+
+export const trocarSenhaSchema = z
+  .object({
+    senha_atual: z.string({ error: 'senha_atual obrigatória' }).min(1, 'senha_atual obrigatória'),
+    nova_senha: novaSenha,
+  })
+  .refine((d) => d.senha_atual !== d.nova_senha, {
+    path: ['nova_senha'],
+    message: 'a nova senha deve ser diferente da atual',
+  });
+
+export const redefinirSenhaSchema = z.object({ nova_senha: novaSenha });
+
 /** Idade completa em anos numa data de referência (hoje, por padrão). */
 export function idade(nascimento: string, hoje = new Date()) {
   const [a, m, d] = nascimento.split('-').map(Number);
