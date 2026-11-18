@@ -1,0 +1,24 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependências]
+    commit-message:
+      prefix: chore(deps)
+    groups:
+      # Atualizações menores e de correção chegam juntas num PR só.
+      menores:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels: [dependências]
+    commit-message:
+      prefix: ci(deps)

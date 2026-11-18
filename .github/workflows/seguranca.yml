@@ -1,0 +1,41 @@
+name: Segurança
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Toda segunda às 9h (Brasília): pega alerta novo mesmo sem commit.
+    - cron: '0 12 * * 1'
+
+concurrency:
+  group: seguranca-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  segredos:
+    name: Segredos no histórico (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Imagem oficial em vez da gitleaks-action, que exige licença em repositório de organização.
+      - name: Gitleaks em todo o histórico
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 \
+            git /repo --redact --no-banner --exit-code 1
+
+  dependencias:
+    name: Dependências vulneráveis (npm audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Só o que vai para produção; falha a partir de severidade alta.
+      - run: npm audit --omit=dev --audit-level=high
