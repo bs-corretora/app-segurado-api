@@ -31,6 +31,7 @@ fonte para baixar.
 | Degrau | Tamanho | Peso | Altura de linha |
 |---|---|---|---|
 | Título | 26px | 700 | 1.2 |
+| Subtítulo (seção do painel) | 18px | 700 | 1.3 |
 | Corpo, campo, botão | 16px | 600 (botão e rótulo), 400 só no texto corrido | 1.4 |
 | Apoio | 14px | 500 | 1.4 |
 

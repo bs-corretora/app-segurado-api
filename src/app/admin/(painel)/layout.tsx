@@ -12,10 +12,11 @@ type Estado = 'carregando' | 'ok' | 'negado' | 'erro';
 const MENU = [
   { href: '/admin', rotulo: 'Início' },
   { href: '/admin/sinistros', rotulo: 'Sinistros' },
-  // { href: '/admin/cotacoes', rotulo: 'Cotações' },
-  // { href: '/admin/segurados', rotulo: 'Segurados' },
-  // { href: '/admin/indicacoes', rotulo: 'Indicações' },
-  // { href: '/admin/contatos', rotulo: 'Contatos' },
+  { href: '/admin/cotacoes', rotulo: 'Cotações' },
+  { href: '/admin/segurados', rotulo: 'Segurados' },
+  { href: '/admin/indicacoes', rotulo: 'Indicações' },
+  { href: '/admin/contatos', rotulo: 'Contatos' },
+  { href: '/admin/campanhas', rotulo: 'Campanhas' },
 ];
 
 export default function LayoutPainel({ children }: { children: ReactNode }) {
