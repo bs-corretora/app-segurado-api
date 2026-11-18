@@ -2,7 +2,7 @@
 
 Guia para quem está ligando as telas do app do segurado na API. O back-end está pronto e
 publicado; aqui vai o que você precisa para trocar os dados de exemplo por chamadas de verdade
-no app Expo.
+no app (PWA com Vite + React, repositório `app-segurado-mobile`).
 
 ## 1. Onde a API está
 
@@ -39,7 +39,7 @@ A API usa **token Bearer**:
 
 1. `POST /auth/login` com `{ "email": "...", "senha": "..." }`.
 2. A resposta traz `access_token`, `refresh_token`, `expires_in` (3600 segundos) e `expires_at`.
-3. Guarde os dois tokens no aparelho com o **`expo-secure-store`** (fica criptografado).
+3. Guarde os dois tokens no `localStorage` do navegador.
 4. Em toda chamada, mande o cabeçalho `Authorization: Bearer <access_token>`.
 5. O `access_token` vale 1 hora. Quando uma chamada voltar **401**, chame
    `POST /auth/refresh` com `{ "refresh_token": "..." }`. A resposta traz tokens **novos**:
@@ -52,29 +52,29 @@ O cadastro (`POST /auth/cadastro`) também já devolve os tokens, então a pesso
 Ao abrir o app, se houver token guardado, chame `GET /me`. Se responder 200, a pessoa já está
 logada e pode ir direto para o Início.
 
-### Código pronto para copiar (Expo)
+Não use `credentials: 'include'` no `fetch`. O app entra só pelo Bearer; o cookie da API é do
+painel administrativo e não funciona a partir de outro domínio.
 
-Instale o armazenamento seguro:
-
-```bash
-npx expo install expo-secure-store
-```
+### Código pronto para copiar
 
 Crie `src/api.js`. Ele guarda os tokens, manda o Bearer, renova sozinho quando o token vence e
-avisa o app quando a sessão acabou:
+avisa o app quando a sessão acabou. Se várias telas receberem 401 ao mesmo tempo, só uma
+renovação acontece: como o refresh_token só serve uma vez, duas renovações em paralelo
+derrubariam a sessão.
 
 ```js
-import * as SecureStore from 'expo-secure-store';
+const API = import.meta.env.VITE_API_URL ?? 'https://app-segurado-api.onrender.com/api/v1';
 
-const API = 'https://app-segurado-api.onrender.com/api/v1';
-
-async function guardar(t) {
-  await SecureStore.setItemAsync('access_token', t.access_token);
-  await SecureStore.setItemAsync('refresh_token', t.refresh_token);
+function guardar(t) {
+  localStorage.setItem('access_token', t.access_token);
+  localStorage.setItem('refresh_token', t.refresh_token);
 }
-async function limpar() {
-  await SecureStore.deleteItemAsync('access_token');
-  await SecureStore.deleteItemAsync('refresh_token');
+function limpar() {
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+}
+export function temSessao() {
+  return localStorage.getItem('access_token') !== null;
 }
 
 // O app registra aqui o que fazer quando a sessão acaba (ex.: ir para o login).
@@ -92,9 +92,9 @@ export class ErroApi extends Error {
   }
 }
 
-async function enviar(caminho, { method = 'GET', corpo } = {}) {
+function enviar(caminho, { method = 'GET', corpo } = {}) {
   const headers = {};
-  const token = await SecureStore.getItemAsync('access_token');
+  const token = localStorage.getItem('access_token');
   if (token) headers.Authorization = `Bearer ${token}`;
   if (corpo !== undefined) headers['Content-Type'] = 'application/json';
   return fetch(API + caminho, {
@@ -104,17 +104,26 @@ async function enviar(caminho, { method = 'GET', corpo } = {}) {
   });
 }
 
-async function renovar() {
-  const refresh_token = await SecureStore.getItemAsync('refresh_token');
-  if (!refresh_token) return false;
-  const r = await fetch(API + '/auth/refresh', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refresh_token }),
-  });
-  if (!r.ok) return false;
-  await guardar(await r.json());
-  return true;
+// Uma renovação por vez: quem chegar enquanto ela roda espera a mesma.
+let renovando = null;
+function renovar() {
+  renovando ??= (async () => {
+    const refresh_token = localStorage.getItem('refresh_token');
+    if (!refresh_token) return false;
+    const r = await fetch(API + '/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token }),
+    });
+    if (!r.ok) return false;
+    guardar(await r.json());
+    return true;
+  })()
+    .catch(() => false)
+    .finally(() => {
+      renovando = null;
+    });
+  return renovando;
 }
 
 /** await api('/dashboard'), await api('/sinistros', { method: 'POST', corpo: {...} }) */
@@ -125,7 +134,7 @@ export async function api(caminho, opcoes) {
     r = await enviar(caminho, opcoes);
   }
   if (r.status === 401 && !deAuth) {
-    await limpar();
+    limpar();
     aoSairDaSessao();
   }
   if (r.status === 204) return null;
@@ -136,29 +145,31 @@ export async function api(caminho, opcoes) {
 
 export async function entrar(email, senha) {
   const r = await api('/auth/login', { method: 'POST', corpo: { email, senha } });
-  await guardar(r);
+  guardar(r);
   return r;
 }
 
 export async function sair() {
   await api('/auth/logout', { method: 'POST' }).catch(() => null);
-  await limpar();
+  limpar();
 }
 ```
 
-Como usar numa tela:
+Como usar com o `useNav` do app:
 
-```js
-import { router } from 'expo-router';
-import { api, entrar, quandoSessaoAcabar, ErroApi } from '../src/api';
+```jsx
+import { useEffect } from 'react';
+import { useNav } from './nav';
+import { api, entrar, quandoSessaoAcabar, ErroApi } from './api';
 
-// uma vez, no _layout.jsx raiz:
-quandoSessaoAcabar(() => router.replace('/login'));
+// uma vez, num componente dentro do NavProvider (ex.: o App):
+const { go } = useNav();
+useEffect(() => quandoSessaoAcabar(() => go('login')), []);
 
 // na tela de login:
 try {
   await entrar(email, senha);
-  router.replace('/inicio');
+  go('home');
 } catch (e) {
   if (e instanceof ErroApi && e.status === 401) setErro('E-mail ou senha inválidos');
   else setErro(e.message);
@@ -168,13 +179,8 @@ try {
 const dados = await api('/dashboard');
 ```
 
-Sem expo-router, troque `router.replace` pela navegação que o app usa.
-
-**Testar no celular:** a API é HTTPS pública, então funciona direto no Expo Go, sem IP local nem
-túnel.
-
-**Versão web (se alguém rodar no navegador):** o mesmo código serve trocando o `SecureStore`
-por `localStorage` (síncrono, sem `await`). No navegador entra o CORS: ver seção 6.
+Para apontar para uma API local, crie `.env.local` com
+`VITE_API_URL=http://localhost:3000/api/v1`.
 
 ## 3. Rotas por tela
 
@@ -189,7 +195,7 @@ resposta está no Swagger, com exemplo real.
 | Início | `GET /dashboard` | nome, iniciais, tempo de casa, aniversário, não lidas, apólices ativas |
 | Apólices | `GET /apolices` | lista paginada |
 | Detalhe da apólice | `GET /apolices/{id}` | |
-| PDF da apólice | `GET /apolices/{id}/pdf` | devolve um link que vale 60 segundos: abra na hora |
+| PDF da apólice | `GET /apolices/{id}/pdf` | devolve um link que vale 60 segundos (ver seção 6) |
 | Assistência 24h | `GET /contatos?tipo=ASSISTENCIA_24H` | telefone e WhatsApp |
 | Contatos de sinistro | `GET /contatos?tipo=SINISTRO` | |
 | Sinistros (lista) | `GET /sinistros` | mais recentes primeiro |
@@ -206,7 +212,6 @@ resposta está no Swagger, com exemplo real.
 | Editar dados | `PATCH /me` | só `telefone` e `aceita_marketing` |
 | Trocar senha | `PATCH /me/senha` `{senha_atual, nova_senha}` | 204; senha atual errada dá 400 |
 | Sair | `POST /auth/logout` | |
-| Push | `POST /dispositivos`, `DELETE /dispositivos/{token}` | ver seção 6 |
 
 Sugestão de ordem para ligar: **login → início → apólices**. Com isso funcionando, o resto segue
 o mesmo padrão.
@@ -245,32 +250,38 @@ o mesmo padrão.
 Limite: o e-mail gratuito do Supabase manda poucos e-mails por hora, para o projeto inteiro.
 Teste com moderação; se não chegar, espere e tente mais tarde.
 
-## 6. Push no app
+## 6. Notificações e PDF
 
-Depois do login, o app registra o aparelho para receber notificação:
+- **Notificações:** as mensagens (sinistro mudou de status, cotação respondida, aniversário,
+  campanhas) ficam em `GET /notificacoes`. O `GET /dashboard` já traz o total de não lidas para
+  o sininho. Para mantê-lo em dia, chame de novo quando a pessoa voltar ao app
+  (`document.addEventListener('visibilitychange', ...)`, com `document.visibilityState === 'visible'`).
+- **Push com o app fechado não existe no PWA.** O envio de push da API é feito pelo serviço do
+  Expo, que só funciona em app nativo. Não chamem `POST /dispositivos`.
+- **PDF da apólice:** o link vale 60 segundos. No iPhone, `window.open` chamado depois de um
+  `await` é bloqueado. Use `window.location.href = url`, ou abra a aba vazia no clique
+  (`const aba = window.open('')`) e depois preencha `aba.location = url`.
 
-1. Pegue o token com `expo-notifications`
-   (`(await Notifications.getExpoPushTokenAsync({ projectId })).data`).
-2. Mande `POST /dispositivos` com
-   `{ "push_token": "ExponentPushToken[...]", "plataforma": "ANDROID" }` (ou `"IOS"`).
-3. No logout, antes de chamar `sair()`, mande `DELETE /dispositivos/{push_token}`.
+## 7. CORS
 
-A API manda push quando o sinistro muda de status, a cotação é respondida, no aniversário e nas
-campanhas. As mesmas mensagens aparecem em `GET /notificacoes`, então a tela de notificações
-funciona mesmo sem push.
+O navegador só deixa o app chamar a API se o endereço do app estiver liberado no servidor.
+Já liberados: `http://localhost:5173` (o `npm run dev` do Vite), `http://localhost:8081` e
+`http://localhost:3000`.
 
-Atenção: desde o SDK 53, o Expo Go no Android não recebe push remoto; para testar push é preciso
-um development build. O resto do app funciona normalmente no Expo Go.
+O `vite preview` usa a porta 4173, que **não** está liberada. Para testar o build localmente,
+rode `npx vite preview --port 5173`.
 
-## 7. CORS (só para a versão web)
+Quando o app for publicado (Vercel, Netlify, GitHub Pages...), mandem o endereço exato ao
+Everson, com `https://` e sem barra no fim (ex.: `https://app-segurado.vercel.app`). Até ele
+ser liberado, o app publicado recebe erro de CORS em todas as chamadas. Cada endereço precisa
+ser liberado um por um: links de prévia que mudam a cada deploy não funcionam.
 
-O app nativo não passa por CORS. Isso só importa se alguém rodar o app no navegador
-(`npx expo start --web`): aí o navegador só deixa chamar a API se o endereço estiver liberado
-no servidor. Já liberados: `http://localhost:8081` (Expo web), `http://localhost:5173` e
-`http://localhost:3000`. Para publicar uma versão web, mandem o endereço ao Everson.
+Se aparecer erro de CORS no console em `localhost:5173`, confira a aba Network antes de
+concluir que é CORS: costuma ser a API acordando (espere a primeira chamada) ou a porta errada.
 
 ## 8. Painel administrativo
 
-O painel do administrador não faz parte do app: fica dentro do repositório da API
-(`src/app/admin`), no mesmo endereço, e usa cookie em vez de Bearer. As rotas estão no Swagger,
-na seção Administração.
+O painel do administrador não faz parte do app: vai ficar dentro do repositório da API
+(`src/app/admin`, PRs #29 e #30), no mesmo endereço, usando cookie em vez de Bearer. As rotas
+de administração já estão no ar e podem ser testadas pelo Swagger, na seção Administração,
+entrando com `admin@bsseguros.com.br`.
