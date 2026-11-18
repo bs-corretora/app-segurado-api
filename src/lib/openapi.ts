@@ -1,5 +1,12 @@
 import { z } from 'zod';
-import { atualizarMeSchema, cadastroSchema, esqueciSenhaSchema, loginSchema } from '@/lib/schemas/conta';
+import {
+  atualizarMeSchema,
+  cadastroSchema,
+  esqueciSenhaSchema,
+  loginSchema,
+  redefinirSenhaSchema,
+  trocarSenhaSchema,
+} from '@/lib/schemas/conta';
 import { campanhaSchema, dispositivoSchema } from '@/lib/schemas/push';
 import {
   alterarContatoSchema,
@@ -52,7 +59,7 @@ const paginacao = [
   { name: 'limite', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 50, default: 20 } },
 ];
 
-const autenticada = { security: [{ cookieSessao: [] }] };
+const autenticada = { security: [{ bearerSessao: [] }, { cookieSessao: [] }] };
 const publica = { security: [] };
 
 const APOLICE = {
@@ -113,11 +120,12 @@ export function especificacaoOpenApi() {
     openapi: '3.1.0',
     info: {
       title: 'App do Segurado — API',
-      version: '0.3.0',
+      version: '0.4.0',
       description:
-        'API do App do Segurado. A sessão é por cookie HttpOnly: faça `POST /auth/login` aqui mesmo ' +
-        'e as rotas autenticadas passam a funcionar nesta página. Usuários de teste no README ' +
-        '(senha `Senha@123`).',
+        'API do App do Segurado. Duas formas de sessão: (1) o front em outro domínio guarda o ' +
+        '`access_token` que o login devolve e manda `Authorization: Bearer <token>` (botão Authorize); ' +
+        '(2) nesta página e no painel, o cookie HttpOnly gravado pelo login já basta: faça ' +
+        '`POST /auth/login` aqui mesmo. Usuários de teste no README (senha `Senha@123`).',
     },
     servers: [{ url: '/api/v1' }],
     tags: [
@@ -135,6 +143,14 @@ export function especificacaoOpenApi() {
     ],
     components: {
       securitySchemes: {
+        bearerSessao: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          description:
+            'access_token devolvido por /auth/login, /auth/cadastro ou /auth/refresh. Vale 1 hora; ' +
+            'renove com POST /auth/refresh mandando o refresh_token no corpo.',
+        },
         cookieSessao: {
           type: 'apiKey',
           in: 'cookie',
@@ -181,7 +197,7 @@ export function especificacaoOpenApi() {
         }),
       },
     },
-    security: [{ cookieSessao: [] }],
+    security: [{ bearerSessao: [] }, { cookieSessao: [] }],
     paths: {
       '/health': {
         get: {
@@ -201,12 +217,21 @@ export function especificacaoOpenApi() {
       '/auth/login': {
         post: {
           tags: ['Autenticação e conta'],
-          summary: 'Entrar (grava os cookies de sessão)',
-          description: 'Tokens só em cookie, nunca no corpo. 5 tentativas por minuto por IP.',
+          summary: 'Entrar',
+          description:
+            'Devolve os tokens no corpo (para o front mandar em Authorization: Bearer) e grava os ' +
+            'cookies HttpOnly (para o painel e esta página). 5 tentativas por minuto por IP.',
           ...publica,
           requestBody: corpo(loginSchema, { email: 'maria.souza@email.com', senha: 'Senha@123' }),
           responses: {
-            200: resposta('Sessão iniciada', { id: PERFIL.id, email: PERFIL.email }),
+            200: resposta('Sessão iniciada', {
+              id: PERFIL.id,
+              email: PERFIL.email,
+              access_token: 'eyJhbGciOiJFUzI1NiIs…',
+              refresh_token: 'v1.MjQ3NDY3…',
+              expires_in: 3600,
+              expires_at: 1794363884,
+            }),
             400: ref('Validacao'),
             401: resposta('E-mail ou senha inválidos'),
             429: ref('LimiteExcedido'),
@@ -235,6 +260,10 @@ export function especificacaoOpenApi() {
             201: resposta('Conta criada e sessão iniciada', {
               id: 'c26c07d0-4520-447d-b0c7-0d54e784f6a1',
               apolices_vinculadas: 1,
+              access_token: 'eyJhbGciOiJFUzI1NiIs…',
+              refresh_token: 'v1.MjQ3NDY3…',
+              expires_in: 3600,
+              expires_at: 1794363884,
             }),
             400: ref('Validacao'),
             409: resposta('CPF ou e-mail já cadastrado'),
@@ -245,10 +274,26 @@ export function especificacaoOpenApi() {
       '/auth/refresh': {
         post: {
           tags: ['Autenticação e conta'],
-          summary: 'Renovar a sessão pelo cookie de refresh',
+          summary: 'Renovar a sessão',
+          description:
+            'Manda `{"refresh_token": "…"}` no corpo (front em outro domínio) ou deixa o cookie de ' +
+            'refresh agir. O refresh_token só serve uma vez: guarde os tokens novos da resposta.',
           ...publica,
+          requestBody: {
+            required: false,
+            content: json(
+              { type: 'object', properties: { refresh_token: { type: 'string' } } },
+              { refresh_token: 'v1.MjQ3NDY3…' },
+            ),
+          },
           responses: {
-            200: resposta('Sessão renovada', { renovada: true }),
+            200: resposta('Sessão renovada', {
+              renovada: true,
+              access_token: 'eyJhbGciOiJFUzI1NiIs…',
+              refresh_token: 'v1.MjQ3NDY3…',
+              expires_in: 3600,
+              expires_at: 1794363884,
+            }),
             401: ref('NaoAutenticado'),
           },
         },
@@ -256,7 +301,7 @@ export function especificacaoOpenApi() {
       '/auth/logout': {
         post: {
           tags: ['Autenticação e conta'],
-          summary: 'Sair (apaga os cookies)',
+          summary: 'Sair (revoga o refresh token e apaga os cookies)',
           ...autenticada,
           responses: { 204: resposta('Sessão encerrada'), 401: ref('NaoAutenticado') },
         },
@@ -265,12 +310,53 @@ export function especificacaoOpenApi() {
         post: {
           tags: ['Autenticação e conta'],
           summary: 'Enviar e-mail de redefinição de senha',
-          description: 'Responde 204 mesmo se o e-mail não tiver conta. 3 por minuto por IP.',
+          description:
+            'Responde 204 mesmo se o e-mail não tiver conta. 3 por minuto por IP. O link do e-mail ' +
+            'abre a página /redefinir-senha desta API, onde a pessoa cria a senha nova.',
           ...publica,
           requestBody: corpo(esqueciSenhaSchema, { email: 'maria.souza@email.com' }),
           responses: {
             204: resposta('Pedido recebido'),
             400: ref('Validacao'),
+            429: ref('LimiteExcedido'),
+          },
+        },
+      },
+      '/auth/redefinir-senha': {
+        post: {
+          tags: ['Autenticação e conta'],
+          summary: 'Gravar a senha nova pelo link do e-mail',
+          description:
+            'Usada pela página /redefinir-senha. Exige em Authorization: Bearer o token que veio no ' +
+            'link do e-mail; token de login comum recebe 403 (use PATCH /me/senha). Encerra todas as ' +
+            'sessões da conta. 3 por minuto por IP.',
+          security: [{ bearerSessao: [] }],
+          requestBody: corpo(redefinirSenhaSchema, { nova_senha: 'NovaSenha@123' }),
+          responses: {
+            204: resposta('Senha alterada'),
+            400: ref('Validacao'),
+            401: resposta('Link inválido ou expirado'),
+            403: resposta('Token não veio do link de redefinição'),
+            429: ref('LimiteExcedido'),
+          },
+        },
+      },
+      '/me/senha': {
+        patch: {
+          tags: ['Autenticação e conta'],
+          summary: 'Trocar a senha (logado)',
+          description:
+            'Confere a senha atual antes. Senha atual errada: 400 com campos.senha_atual. A sessão ' +
+            'atual continua valendo. 5 tentativas por minuto.',
+          ...autenticada,
+          requestBody: corpo(trocarSenhaSchema, {
+            senha_atual: 'Senha@123',
+            nova_senha: 'NovaSenha@123',
+          }),
+          responses: {
+            204: resposta('Senha alterada'),
+            400: ref('Validacao'),
+            401: ref('NaoAutenticado'),
             429: ref('LimiteExcedido'),
           },
         },
@@ -523,6 +609,30 @@ export function especificacaoOpenApi() {
           },
         },
       },
+      '/cotacoes/{id}': {
+        get: {
+          tags: ['Cotações'],
+          summary: 'Detalhe do pedido de cotação',
+          description: 'Com a resposta da corretora quando houver. De outro usuário: 404.',
+          ...autenticada,
+          parameters: [parametroId('cotação')],
+          responses: {
+            200: resposta('Cotação', {
+              id: 'c31e9999-9999-9999-9999-999999999999',
+              produto: 'AUTO',
+              motivo: 'NOVO',
+              dados: { modelo: 'Onix 2022', placa: 'ABC1D23', uso: 'particular' },
+              status: 'RECEBIDA',
+              resposta: null,
+              valor_estimado: null,
+              respondida_em: null,
+              criado_em: '2026-11-05T22:00:00+00:00',
+            }),
+            401: ref('NaoAutenticado'),
+            404: ref('NaoEncontrado'),
+          },
+        },
+      },
       '/indicacoes/link': {
         get: {
           tags: ['Indicações'],
@@ -702,6 +812,24 @@ export function especificacaoOpenApi() {
               erro: 'NAO_AUTENTICADO',
               mensagem: 'Chave interna ausente ou inválida',
             }),
+          },
+        },
+      },
+      '/admin/resumo': {
+        get: {
+          ...admin,
+          summary: 'Indicadores do painel (ADMIN)',
+          responses: {
+            200: resposta('Contagens', {
+              segurados: 2,
+              apolices_ativas: 3,
+              sinistros: { ABERTO: 0, EM_ANALISE: 1, CONCLUIDO: 0 },
+              cotacoes: { RECEBIDA: 1, EM_ANALISE: 0, RESPONDIDA: 1 },
+              indicacoes: { NOVA: 1, CONTATADA: 0, CONVERTIDA: 0 },
+              pendencias: { sinistros_abertos: 0, cotacoes_sem_resposta: 1, indicacoes_novas: 1 },
+            }),
+            401: ref('NaoAutenticado'),
+            403: ref('SemPermissao'),
           },
         },
       },

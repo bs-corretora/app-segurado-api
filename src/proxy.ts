@@ -3,10 +3,10 @@ import { getEnv } from '@/lib/env';
 
 // CORS da seção 7.3: só as origens de CORS_ALLOWED_ORIGINS, com credenciais.
 // O app nativo não manda Origin e não passa por aqui; quem usa é o navegador
-// (painel administrativo e página pública).
+// (front do app em outro domínio, com Authorization: Bearer).
 const CABECALHOS = {
   'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Allow-Credentials': 'true',
   'Access-Control-Max-Age': '600',
 };
