@@ -281,6 +281,7 @@ concluir que é CORS: costuma ser a API acordando (espere a primeira chamada) ou
 
 ## 8. Painel administrativo
 
-O painel do administrador não faz parte do app: fica dentro do repositório da API
-(`src/app/admin`), no mesmo endereço, e usa cookie em vez de Bearer. As rotas estão no Swagger,
-na seção Administração.
+O painel do administrador não faz parte do app: vai ficar dentro do repositório da API
+(`src/app/admin`, PRs #29 e #30), no mesmo endereço, usando cookie em vez de Bearer. As rotas
+de administração já estão no ar e podem ser testadas pelo Swagger, na seção Administração,
+entrando com `admin@bsseguros.com.br`.
