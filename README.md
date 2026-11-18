@@ -270,5 +270,10 @@ Confira se o `supabase start` está rodando. Dentro do contêiner o Supabase é 
 
 ## Fluxo de trabalho
 
+GitHub Flow, descrito em [CONTRIBUTING.md](CONTRIBUTING.md): issue, branch curta a partir da
+`main`, Pull Request com o CI verde (lint, tipos, testes unitários, Docker, banco, ponta a ponta,
+Gitleaks e `npm audit`) e merge. A `main` é protegida e cada merge publica no Render. Histórico
+de versões no [CHANGELOG.md](CHANGELOG.md).
+
 - Cada pessoa trabalha em uma branch própria e abre Pull Request para a `main`.
 - Migration que já foi para a `main` não se edita; correção vira uma migration nova.
