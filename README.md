@@ -246,7 +246,7 @@ domínio pode encaminhar `/api/*` para o Render em vez de chamar `onrender.com` 
 - Vite em desenvolvimento, `vite.config.js`: `server: { proxy: { '/api': 'https://<serviço>.onrender.com' } }`
 
 Assim a página e a API ficam na mesma origem: o cookie funciona (inclusive no Safari, que
-bloqueia cookie de terceiros) e não há CORS. O app nativo (Expo) não passa por isso.
+bloqueia cookie de terceiros) e não há CORS. O app do segurado (PWA) usa o caminho padrão, com Bearer e CORS.
 
 ## Problemas comuns
 
