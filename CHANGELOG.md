@@ -9,7 +9,8 @@ dos PRs mesclados.
 
 ### Adicionado
 - Painel administrativo: login, layout protegido e tela de sinistros com mudança de status (#29, #30).
-- Camada de testes unitários das regras de negócio, com cobertura mínima no CI.
+- Camada de testes unitários das regras de negócio: 70 testes nomeados pelo requisito, com
+  cobertura mínima de 80% no CI (#46).
 - Workflow de segurança: Gitleaks no histórico, `npm audit` das dependências de produção e
   Dependabot semanal (#40).
 - `CONTRIBUTING.md` com o GitHub Flow, modelos de PR e de issue.

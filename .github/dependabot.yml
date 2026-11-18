@@ -9,6 +9,11 @@ updates:
     labels: [dependências]
     commit-message:
       prefix: chore(deps)
+    # Versão maior (TypeScript 7, ESLint 10...) pede migração: entra por issue própria, não por PR
+    # automático. Alerta de segurança continua chegando pelas correções de segurança do Dependabot.
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
     groups:
       # Atualizações menores e de correção chegam juntas num PR só.
       menores:
