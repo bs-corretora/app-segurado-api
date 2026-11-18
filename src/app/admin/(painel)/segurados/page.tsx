@@ -25,6 +25,12 @@ type Apolice = {
   premio: number | null;
 };
 
+const STATUS_APOLICE: Record<string, string> = {
+  ATIVA: 'Ativa',
+  VENCIDA: 'Vencida',
+  CANCELADA: 'Cancelada',
+};
+
 type SeguradoDetalhe = {
   id: string;
   nome: string;
@@ -105,9 +111,7 @@ function DetalheSegurado({ detalhe }: { detalhe: Detalhe | null }) {
         </tbody>
       </table>
 
-      <h2 className={estilos.rotulo} style={{ marginTop: 16 }}>
-        Apólices ({s.apolices.length})
-      </h2>
+      <h2 className={estilos.subtitulo}>Apólices ({s.apolices.length})</h2>
       {s.apolices.length === 0 ? (
         <p className={estilos.vazio}>Nenhuma apólice.</p>
       ) : (
@@ -127,7 +131,7 @@ function DetalheSegurado({ detalhe }: { detalhe: Detalhe | null }) {
                 <tr key={a.id}>
                   <td>{a.numero}</td>
                   <td>{PRODUTOS[a.produto] ?? a.produto}</td>
-                  <td>{a.status}</td>
+                  <td>{STATUS_APOLICE[a.status] ?? a.status}</td>
                   <td>
                     {dataSimples(a.inicio_vigencia)} a {dataSimples(a.fim_vigencia)}
                   </td>
