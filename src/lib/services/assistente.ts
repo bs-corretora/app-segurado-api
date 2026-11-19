@@ -1,4 +1,3 @@
-import { Anthropic } from '@anthropic-ai/sdk';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { buscarConhecimento } from '@/lib/services/conhecimento';
 import { getEnv } from '@/lib/env';
@@ -32,13 +31,38 @@ export interface AssistenteResponse {
   atalhos: AtalhoNavegacao[];
 }
 
-interface ToolResult {
-  toolUseId: string;
-  content: string;
+// Groq expõe a API no formato da OpenAI (chat completions com tools).
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+
+interface FerramentaDef {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
 }
 
+interface ToolCall {
+  id: string;
+  type: 'function';
+  function: { name: string; arguments: string };
+}
+
+type MensagemModelo =
+  | { role: 'system' | 'user'; content: string }
+  | { role: 'assistant'; content: string | null; tool_calls?: ToolCall[] }
+  | { role: 'tool'; tool_call_id: string; content: string };
+
+interface RespostaModelo {
+  choices: Array<{
+    finish_reason: string;
+    message: { content: string | null; tool_calls?: ToolCall[] };
+  }>;
+}
+
+/** Falha do provedor de IA (fora do ar, cota, chave inválida). A rota responde 503. */
+export class AssistenteIndisponivelError extends Error {}
+
 // Tools disponíveis para o modelo (apenas leitura, vinculadas ao perfil_id da sessão)
-const TOOLS: Anthropic.Tool[] = [
+const TOOLS: FerramentaDef[] = [
   {
     name: 'buscar_apolices',
     description:
@@ -203,13 +227,52 @@ async function executarTool(
   }
 }
 
+async function chamarModelo(
+  apiKey: string,
+  modelo: string,
+  mensagens: MensagemModelo[]
+): Promise<RespostaModelo> {
+  let res: Response;
+  try {
+    res = await fetch(GROQ_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: modelo,
+        max_tokens: 1500,
+        temperature: 0.2,
+        messages: mensagens,
+        tools: TOOLS.map((t) => ({
+          type: 'function',
+          function: { name: t.name, description: t.description, parameters: t.input_schema },
+        })),
+        tool_choice: 'auto',
+      }),
+      signal: AbortSignal.timeout(30_000),
+    });
+  } catch (e) {
+    throw new AssistenteIndisponivelError(`falha de rede no provedor: ${(e as Error).message}`);
+  }
+  if (!res.ok) {
+    // Só o status vai para o log: o corpo pode repetir a pergunta do usuário.
+    throw new AssistenteIndisponivelError(`provedor respondeu ${res.status}`);
+  }
+  return (await res.json()) as RespostaModelo;
+}
+
+/** Tira cercas de código (```json ... ```) que alguns modelos colocam em volta do JSON. */
+function semCercas(texto: string): string {
+  const m = texto.trim().match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
+  return m ? m[1] : texto.trim();
+}
+
 export async function processarAssistente(
   mensagens: MensagemHistorico[],
   perfilId: string
 ): Promise<AssistenteResponse> {
-  const { ANTHROPIC_API_KEY, ASSISTENTE_MODELO } = getEnv();
-  if (!ANTHROPIC_API_KEY) {
-    console.error('[assistente] ANTHROPIC_API_KEY não configurada');
+  const { GROQ_API_KEY, ASSISTENTE_MODELO } = getEnv();
+  if (!GROQ_API_KEY) {
+    console.error('[assistente] GROQ_API_KEY não configurada');
     return {
       resposta:
         'Desculpe, o assistente está temporariamente indisponível. Tente novamente mais tarde.',
@@ -218,8 +281,6 @@ export async function processarAssistente(
     };
   }
 
-  const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
-
   // Última mensagem do usuário para busca RAG
   const ultimaUsuario = [...mensagens].reverse().find((m) => m.role === 'user');
   const consultaRag = ultimaUsuario?.content ?? '';
@@ -227,101 +288,69 @@ export async function processarAssistente(
   // Busca na base de conhecimento (RAG)
   const trechosConhecimento = await buscarConhecimento(consultaRag, 5);
 
-  // Contexto do RAG para o system prompt
   const contextoRag =
     trechosConhecimento.length > 0
       ? `\n\nBASE DE CONHECIMENTO (trechos relevantes):\n` +
         trechosConhecimento
-          .map(
-            (t, i) =>
-              `[${i + 1}] ${t.titulo} (categoria: ${t.categoria}):\n${t.conteudo}`
-          )
+          .map((t, i) => `[${i + 1}] ${t.titulo} (id: ${t.id}, categoria: ${t.categoria}):\n${t.conteudo}`)
           .join('\n\n')
       : '\n\nBASE DE CONHECIMENTO: nenhum trecho relevante encontrado.';
 
-  const systemPromptCompleto = SYSTEM_PROMPT + contextoRag;
+  // Conversa enviada ao modelo: system + últimas 10 mensagens
+  const conversa: MensagemModelo[] = [
+    { role: 'system', content: SYSTEM_PROMPT + contextoRag },
+    ...mensagens.slice(-10).map((m) => ({ role: m.role, content: m.content }) as MensagemModelo),
+  ];
 
-  // Prepara mensagens para o Claude (últimas 10)
-  const mensagensClaude: Anthropic.MessageParam[] = mensagens.slice(-10).map((m) => ({
-    role: m.role,
-    content: m.content,
-  }));
-
-  // Primeira chamada ao modelo
-  let response = await anthropic.messages.create({
-    model: ASSISTENTE_MODELO,
-    max_tokens: 1500,
-    system: systemPromptCompleto,
-    messages: mensagensClaude,
-    tools: TOOLS,
-    tool_choice: { type: 'auto' },
-  });
+  let resposta = await chamarModelo(GROQ_API_KEY, ASSISTENTE_MODELO, conversa);
 
   // Loop de tool calling - máximo 5 chamadas de ferramenta por pergunta
-  const toolResults: ToolResult[] = [];
   let toolCallsCount = 0;
   const maxToolCalls = 5;
   let iterations = 0;
   const maxIterations = 5;
 
   while (
-    response.stop_reason === 'tool_use' &&
+    (resposta.choices[0]?.message.tool_calls?.length ?? 0) > 0 &&
     iterations < maxIterations &&
     toolCallsCount < maxToolCalls
   ) {
     iterations++;
-    const toolUses = response.content.filter(
-      (c): c is Anthropic.ToolUseBlock => c.type === 'tool_use'
-    );
+    const mensagemModelo = resposta.choices[0].message;
+    const chamadas = mensagemModelo.tool_calls ?? [];
+    conversa.push({ role: 'assistant', content: mensagemModelo.content, tool_calls: chamadas });
 
-    for (const toolUse of toolUses) {
-      if (toolCallsCount >= maxToolCalls) break;
-      toolCallsCount++;
-      try {
-        const result = await executarTool(
-          toolUse.name,
-          toolUse.input as Record<string, unknown>,
-          perfilId
-        );
-        toolResults.push({ toolUseId: toolUse.id, content: result });
-      } catch (e) {
-        console.error('[assistente] erro ao executar tool:', e);
-        toolResults.push({
-          toolUseId: toolUse.id,
-          content: 'Erro ao buscar dados. Tente novamente.',
-        });
+    for (const chamada of chamadas) {
+      let conteudo: string;
+      if (toolCallsCount >= maxToolCalls) {
+        conteudo = 'Limite de consultas atingido nesta pergunta.';
+      } else {
+        toolCallsCount++;
+        try {
+          const args = chamada.function.arguments ? JSON.parse(chamada.function.arguments) : {};
+          conteudo = await executarTool(chamada.function.name, args as Record<string, unknown>, perfilId);
+        } catch (e) {
+          console.error('[assistente] erro ao executar tool:', e);
+          conteudo = 'Erro ao buscar dados. Tente novamente.';
+        }
       }
+      // Toda tool_call precisa de resposta, senão o provedor recusa a próxima chamada.
+      conversa.push({ role: 'tool', tool_call_id: chamada.id, content: conteudo });
     }
 
     if (toolCallsCount >= maxToolCalls) break;
 
-    // Próxima chamada com resultados das tools
-    response = await anthropic.messages.create({
-      model: ASSISTENTE_MODELO,
-      max_tokens: 1500,
-      system: systemPromptCompleto,
-      messages: [
-        ...mensagensClaude,
-        { role: 'assistant', content: response.content },
-        {
-          role: 'user',
-          content: toolResults.map((r) => ({
-            type: 'tool_result' as const,
-            tool_use_id: r.toolUseId,
-            content: r.content,
-          })),
-        },
-      ],
-      tools: TOOLS,
-      tool_choice: { type: 'auto' },
-    });
+    resposta = await chamarModelo(GROQ_API_KEY, ASSISTENTE_MODELO, conversa);
   }
 
-  // Extrai resposta final
-  const textoFinal = response.content
-    .filter((c): c is Anthropic.TextBlock => c.type === 'text')
-    .map((c) => c.text)
-    .join('');
+  const textoFinal = semCercas(resposta.choices[0]?.message.content ?? '');
+  if (!textoFinal) {
+    return {
+      resposta: 'Não consegui concluir a consulta agora. Tente perguntar de outro jeito.',
+      fontes: trechosConhecimento.map((t) => ({ id: t.id, titulo: t.titulo })),
+      atalhos: [],
+    };
+  }
 
   // Tenta parsear JSON da resposta
   let respostaFinal: AssistenteResponse;

@@ -1,18 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ToolUseBlock, TextBlock } from '@anthropic-ai/sdk/resources/messages';
 
-// Mock do @anthropic-ai/sdk - must be before imports
+// Mock da chamada HTTP à Groq: cada fetch repassa o corpo (sem a mensagem de system)
+// para mockMessagesCreate, que devolve a resposta no formato chat completions.
 const mockMessagesCreate = vi.fn();
-
-vi.mock('@anthropic-ai/sdk', () => {
-  return {
-    Anthropic: class MockAnthropic {
-      messages = {
-        create: mockMessagesCreate,
-      };
-    },
-  };
+const mockFetch = vi.fn(async (_url: string, init: { body: string }) => {
+  const corpo = JSON.parse(init.body) as { messages: Array<{ role: string }> };
+  const resposta = await mockMessagesCreate({
+    ...corpo,
+    messages: corpo.messages.filter((m) => m.role !== 'system'),
+  });
+  return { ok: true, status: 200, json: async () => resposta };
 });
+vi.stubGlobal('fetch', mockFetch);
 
 // Mock dos serviços de leitura
 vi.mock('@/lib/services/leitura', () => ({
@@ -49,29 +48,35 @@ vi.mock('@/lib/supabase/server', () => ({
 // Mock do env
 vi.mock('@/lib/env', () => ({
   getEnv: vi.fn(() => ({
-    ANTHROPIC_API_KEY: 'test-key',
-    ASSISTENTE_MODELO: 'claude-haiku-5-5',
+    GROQ_API_KEY: 'test-key',
+    ASSISTENTE_MODELO: 'llama-3.3-70b-versatile',
   })),
 }));
 
 // Now import the modules under test
-import { processarAssistente } from '@/lib/services/assistente';
+import { processarAssistente, AssistenteIndisponivelError } from '@/lib/services/assistente';
 import { buscarConhecimento } from '@/lib/services/conhecimento';
 import { dashboard, listarApolices, buscarApolice, listarContatos, listarNotificacoes } from '@/lib/services/leitura';
 import { getEnv } from '@/lib/env';
 
 const PERFIL_ID_TESTE = '22222222-2222-2222-2222-222222222222';
 
+type ToolUse = { id: string; name: string; input: Record<string, unknown> };
 type MockResponse = {
-  content: (ToolUseBlock | TextBlock)[];
-  stop_reason: 'end_turn' | 'tool_use' | 'max_tokens' | 'stop_sequence';
+  choices: Array<{
+    finish_reason: string;
+    message: {
+      content: string | null;
+      tool_calls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>;
+    };
+  }>;
 };
 
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-11-17T12:00:00-03:00'));
   vi.clearAllMocks();
-  process.env.ANTHROPIC_API_KEY = 'test-key';
+  process.env.GROQ_API_KEY = 'test-key';
   
   // Reset mock implementations
   mockRpc.mockReset();
@@ -98,23 +103,33 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
-  delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.GROQ_API_KEY;
 });
 
-function criarToolUse(id: string, name: string, input: Record<string, unknown>): ToolUseBlock {
-  return { type: 'tool_use', id, name, input };
+function criarToolUse(id: string, name: string, input: Record<string, unknown>): ToolUse {
+  return { id, name, input };
 }
 
-function criarTexto(text: string): TextBlock {
-  return { type: 'text', text };
-}
-
-function criarRespostaToolUse(toolUses: ToolUseBlock[]): MockResponse {
-  return { content: toolUses, stop_reason: 'tool_use' };
+function criarRespostaToolUse(toolUses: ToolUse[]): MockResponse {
+  return {
+    choices: [
+      {
+        finish_reason: 'tool_calls',
+        message: {
+          content: null,
+          tool_calls: toolUses.map((t) => ({
+            id: t.id,
+            type: 'function' as const,
+            function: { name: t.name, arguments: JSON.stringify(t.input) },
+          })),
+        },
+      },
+    ],
+  };
 }
 
 function criarRespostaTexto(text: string): MockResponse {
-  return { content: [criarTexto(text)], stop_reason: 'end_turn' };
+  return { choices: [{ finish_reason: 'stop', message: { content: text } }] };
 }
 
 describe('Assistente Virtual - Serviço', () => {
@@ -196,10 +211,10 @@ describe('Assistente Virtual - Serviço', () => {
       { role: 'user' as const, content: 'Como abro um sinistro?' },
     ];
 
-    it('deve retornar erro amigável quando ANTHROPIC_API_KEY não está configurada', async () => {
+    it('deve retornar erro amigável quando GROQ_API_KEY não está configurada', async () => {
       vi.mocked(getEnv).mockReturnValueOnce({
-        ANTHROPIC_API_KEY: '',
-        ASSISTENTE_MODELO: 'claude-haiku-5-5',
+        GROQ_API_KEY: '',
+        ASSISTENTE_MODELO: 'llama-3.3-70b-versatile',
       });
 
       const resultado = await processarAssistente(mensagensBase, PERFIL_ID_TESTE);
@@ -552,5 +567,52 @@ describe('Assistente Virtual - Serviço', () => {
         { rotulo: 'Ver apólices', tela: '/apolices' },
       ]);
     });
+  });
+});
+
+describe('Assistente Virtual - provedor Groq', () => {
+  it('converte erro HTTP do provedor em AssistenteIndisponivelError', async () => {
+    mockRpc.mockResolvedValue({ data: [], error: null });
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 429, json: async () => ({}) } as never);
+
+    await expect(
+      processarAssistente([{ role: 'user', content: 'Oi' }], PERFIL_ID_TESTE)
+    ).rejects.toBeInstanceOf(AssistenteIndisponivelError);
+  });
+
+  it('converte falha de rede em AssistenteIndisponivelError', async () => {
+    mockRpc.mockResolvedValue({ data: [], error: null });
+    mockFetch.mockRejectedValueOnce(new Error('ECONNRESET'));
+
+    await expect(
+      processarAssistente([{ role: 'user', content: 'Oi' }], PERFIL_ID_TESTE)
+    ).rejects.toBeInstanceOf(AssistenteIndisponivelError);
+  });
+
+  it('aceita JSON cercado por bloco de código', async () => {
+    mockRpc.mockResolvedValue({ data: [], error: null });
+    mockMessagesCreate.mockResolvedValueOnce(
+      criarRespostaTexto(['```json', '{"resposta":"Pronto","fontes":[],"atalhos":[{"rotulo":"Apólices","tela":"/apolices"}]}', '```'].join(String.fromCharCode(10)))
+    );
+
+    const r = await processarAssistente([{ role: 'user', content: 'Oi' }], PERFIL_ID_TESTE);
+
+    expect(r.resposta).toBe('Pronto');
+    expect(r.atalhos).toEqual([{ rotulo: 'Apólices', tela: '/apolices', id: undefined }]);
+  });
+
+  it('envia as ferramentas no formato function e a chave no cabeçalho', async () => {
+    mockRpc.mockResolvedValue({ data: [], error: null });
+    mockMessagesCreate.mockResolvedValueOnce(criarRespostaTexto('{"resposta":"Oi","fontes":[],"atalhos":[]}'));
+
+    await processarAssistente([{ role: 'user', content: 'Oi' }], PERFIL_ID_TESTE);
+
+    const [url, init] = mockFetch.mock.calls[0] as unknown as [string, { headers: Record<string, string>; body: string }];
+    expect(url).toBe('https://api.groq.com/openai/v1/chat/completions');
+    expect(init.headers.Authorization).toBe('Bearer test-key');
+    const corpo = JSON.parse(init.body);
+    expect(corpo.model).toBe('llama-3.3-70b-versatile');
+    expect(corpo.messages[0].role).toBe('system');
+    expect(corpo.tools[0]).toMatchObject({ type: 'function', function: { name: 'buscar_apolices' } });
   });
 });
