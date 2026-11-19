@@ -103,3 +103,26 @@ INSERT INTO public.notificacao (id, perfil_id, tipo, titulo, mensagem, destino_t
 ('9e442222-2222-2222-2222-222222222222', '22222222-2222-2222-2222-222222222222', 'SISTEMA', 'Sua cotação foi respondida', 'Veja a proposta para o seguro residencial.', 'COTACAO', 'c31e1111-1111-1111-1111-111111111111', '2026-10-04 18:00:00-03', '2026-10-04 16:30:00-03'),
 ('9e443333-3333-3333-3333-333333333333', '55555555-5555-5555-5555-555555555555', 'SISTEMA', 'Seu sinistro foi concluído', 'SIN-2026-000124 foi concluído.', 'SINISTRO', 'a7d22222-2222-2222-2222-222222222222', NULL, '2026-09-25 16:00:00-03'),
 ('9e444444-4444-4444-4444-444444444444', '44444444-4444-4444-4444-444444444444', 'MARKETING', 'Proteja sua casa também', 'Clientes empresariais têm condição especial no seguro residencial.', NULL, NULL, NULL, '2026-10-10 12:00:00-03');
+
+-- Base de conhecimento RAG (Sub-issue #54)
+-- Sincronizado via `npm run conhecimento` a partir de supabase/conhecimento/*.md
+
+INSERT INTO public.conhecimento (id, titulo, conteudo, categoria) VALUES
+('11111111-1111-1111-1111-111111111111', 'Como abrir um sinistro pelo aplicativo', 'Para abrir um sinistro: 1) Acesse a tela "Sinistros" no menu inferior. 2) Toque no botão "+" ou "Novo Sinistro". 3) Selecione a apólice relacionada. 4) Preencha: tipo de sinistro (colisão, roubo, incêndio, etc.), data e hora da ocorrência, local (endereço ou referência), descrição detalhada do ocorrido. 5) Anexe fotos dos danos e documentos (boletim de ocorrência, se houver). 6) Revise e confirme. Você receberá o protocolo na hora e poderá acompanhar o status na mesma tela.', 'SINISTRO'),
+('22222222-2222-2222-2222-222222222222', 'Como consultar minhas apólices ativas', 'Na tela inicial ("Início") você vê um resumo das apólices ativas. Para ver todas: vá em "Apólices" no menu inferior. Lá estão listadas todas as suas apólices com status (ATIVA, VENCIDA, CANCELADA). Toque numa apólice para ver detalhes: número, produto, vigência (início e fim), prêmio, coberturas e botão para baixar o PDF.', 'APOLICE'),
+('33333333-3333-3333-3333-333333333333', 'Como solicitar uma cotação de seguro', 'No menu inferior, toque em "Cotações" e depois em "Nova Cotação". Escolha o produto (Auto, Residencial, Vida, Empresarial) e o motivo (Novo ou Renovação). Preencha os dados solicitados conforme o produto: para Auto informe placa, modelo, ano; para Residencial informe tipo de imóvel e valor da edificação; para Vida informe idade e valor desejado. Envie e aguarde a resposta da corretora. Você será notificado quando houver resposta.', 'COTACAO'),
+('44444444-4444-4444-4444-444444444444', 'Como indicar um amigo e ganhar benefícios', 'Acesse "Indicações" no menu inferior. Toque em "Indicar Amigo". Preencha nome, telefone e e-mail (opcional) do indicado. Seu código de indicação único é gerado automaticamente. Quando o indicado contratar um seguro usando seu código, você recebe o benefício conforme a campanha vigente. Acompanhe o status das suas indicações na mesma tela.', 'APP_USO'),
+('55555555-5555-5555-5555-555555555555', 'Como ver e gerenciar notificações', 'O ícone de sino no canto superior direito mostra notificações não lidas. Toque para ver todas: de sistema (status de sinistro, cotação respondida), marketing e alertas. Toque numa notificação para ir direto à tela relacionada (ex: abrir o sinistro que mudou de status). Deslize para marcar como lida ou use "Marcar todas como lidas".', 'APP_USO'),
+('66666666-6666-6666-6666-666666666666', 'Como criar sua conta e entrar no app', 'Para criar sua conta: 1) Abra o app e toque em "Cadastrar". 2) Informe seu CPF, nome completo, data de nascimento, telefone e e-mail. 3) Crie uma senha (mínimo 8 caracteres, com maiúscula, minúscula, número e caractere especial). 4) Aceite os termos de uso e a política de privacidade. 5) Confirme o cadastro. Você receberá um e-mail de boas-vindas.
+
+Para entrar: use seu CPF e a senha criada. Se o celular tiver biometria cadastrada, pode usar Face ID ou impressão digital para acesso rápido.', 'CONTA'),
+('77777777-7777-7777-7777-777777777777', 'Como trocar ou recuperar sua senha', 'Para trocar a senha sabendo a atual: vá em "Perfil" (ícone de usuário no canto superior) > "Alterar Senha". Informe a senha atual e a nova senha (mínimo 8 caracteres, 1 maiúscula, 1 minúscula, 1 número, 1 especial).
+
+Se esqueceu a senha: na tela de login, toque em "Esqueci a senha". Informe seu CPF ou e-mail cadastrado. Você receberá um link por e-mail para criar uma nova senha. O link expira em 1 hora. Se não receber o e-mail, verifique a pasta de spam ou contate o suporte.', 'CONTA'),
+('88888888-8888-8888-8888-888888888888', 'Como instalar o app na tela inicial (PWA)', 'O app pode ser instalado direto no seu celular, funcionando como um app nativo.
+
+**No Android (Chrome):** 1) Abra o app no Chrome. 2) Toque no menu ⋮ (três pontos) > "Instalar app" ou "Adicionar à tela inicial". 3) Confirme. O ícone aparecerá na tela inicial e na gaveta de apps.
+
+**No iOS (Safari):** 1) Abra o app no Safari. 2) Toque no botão de compartilhar (quadrado com seta para cima). 3) Role para baixo e toque em "Adicionar à Tela de Início". 4) Confirme o nome e toque em "Adicionar". O ícone aparecerá na tela inicial.
+
+Após instalar, o app abre em tela cheia, sem barra do navegador, e funciona offline para conteúdos já carregados.', 'APP_USO');

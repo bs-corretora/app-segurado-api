@@ -137,6 +137,40 @@ describe('Assistente Virtual - Serviço', () => {
       });
     });
 
+    it('deve retornar trecho de senha em 1º lugar para "esqueci a senha"', async () => {
+      mockRpc.mockResolvedValue({
+        data: [
+          {
+            id: '77777777-7777-7777-7777-777777777777',
+            titulo: 'Como trocar ou recuperar sua senha',
+            conteudo: 'Se esqueceu a senha: na tela de login, toque em "Esqueci a senha"...',
+            categoria: 'CONTA',
+            atualizado_em: '2026-11-17T12:00:00-03:00',
+            rank: 0.98,
+          },
+          {
+            id: '66666666-6666-6666-6666-666666666666',
+            titulo: 'Como criar sua conta e entrar no app',
+            conteudo: 'Para criar sua conta...',
+            categoria: 'CONTA',
+            atualizado_em: '2026-11-17T12:00:00-03:00',
+            rank: 0.85,
+          },
+        ],
+        error: null,
+      });
+
+      const resultado = await buscarConhecimento('esqueci a senha', 4);
+
+      expect(resultado).toHaveLength(2);
+      expect(resultado[0].titulo).toBe('Como trocar ou recuperar sua senha');
+      expect(resultado[0].rank).toBeGreaterThan(resultado[1].rank);
+      expect(mockRpc).toHaveBeenCalledWith('buscar_conhecimento', {
+        pergunta: 'esqueci a senha',
+        limite: 4,
+      });
+    });
+
     it('deve retornar array vazio em caso de erro', async () => {
       mockRpc.mockResolvedValue({ data: null, error: new Error('DB error') });
 

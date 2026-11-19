@@ -24,6 +24,9 @@ const CATEGORIA_POR_ARQUIVO: Record<string, string> = {
   'cotacao-solicitar.md': 'COTACAO',
   'indicacao-amigo.md': 'APP_USO',
   'notificacoes-gerenciar.md': 'APP_USO',
+  'conta-criar-entrar.md': 'CONTA',
+  'conta-senha.md': 'CONTA',
+  'instalacao-pwa.md': 'APP_USO',
 };
 
 function extrairTitulo(conteudo: string): string {
