@@ -49,7 +49,7 @@ vi.mock('@/lib/supabase/server', () => ({
 vi.mock('@/lib/env', () => ({
   getEnv: vi.fn(() => ({
     GROQ_API_KEY: 'test-key',
-    ASSISTENTE_MODELO: 'llama-3.3-70b-versatile',
+    ASSISTENTE_MODELO: 'openai/gpt-oss-120b',
   })),
 }));
 
@@ -214,7 +214,7 @@ describe('Assistente Virtual - Serviço', () => {
     it('deve retornar erro amigável quando GROQ_API_KEY não está configurada', async () => {
       vi.mocked(getEnv).mockReturnValueOnce({
         GROQ_API_KEY: '',
-        ASSISTENTE_MODELO: 'llama-3.3-70b-versatile',
+        ASSISTENTE_MODELO: 'openai/gpt-oss-120b',
       });
 
       const resultado = await processarAssistente(mensagensBase, PERFIL_ID_TESTE);
@@ -573,7 +573,7 @@ describe('Assistente Virtual - Serviço', () => {
 describe('Assistente Virtual - provedor Groq', () => {
   it('converte erro HTTP do provedor em AssistenteIndisponivelError', async () => {
     mockRpc.mockResolvedValue({ data: [], error: null });
-    mockFetch.mockResolvedValueOnce({ ok: false, status: 429, json: async () => ({}) } as never);
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) } as never);
 
     await expect(
       processarAssistente([{ role: 'user', content: 'Oi' }], PERFIL_ID_TESTE)
@@ -611,8 +611,49 @@ describe('Assistente Virtual - provedor Groq', () => {
     expect(url).toBe('https://api.groq.com/openai/v1/chat/completions');
     expect(init.headers.Authorization).toBe('Bearer test-key');
     const corpo = JSON.parse(init.body);
-    expect(corpo.model).toBe('llama-3.3-70b-versatile');
+    expect(corpo.model).toBe('openai/gpt-oss-120b');
     expect(corpo.messages[0].role).toBe('system');
     expect(corpo.tools[0]).toMatchObject({ type: 'function', function: { name: 'buscar_apolices' } });
+  });
+});
+
+describe('Assistente Virtual - recuos do provedor', () => {
+  it('repete sem ferramentas quando o modelo chama ferramenta inexistente (tool_use_failed)', async () => {
+    mockRpc.mockResolvedValue({ data: [], error: null });
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: { code: 'tool_use_failed' } }),
+    } as never);
+    mockMessagesCreate.mockResolvedValueOnce(criarRespostaTexto('{"resposta":"Sem ferramentas","fontes":[],"atalhos":[]}'));
+
+    const r = await processarAssistente([{ role: 'user', content: 'Oi' }], PERFIL_ID_TESTE);
+
+    expect(r.resposta).toBe('Sem ferramentas');
+    const segunda = JSON.parse((mockFetch.mock.calls[1] as unknown as [string, { body: string }])[1].body);
+    expect(segunda.tools).toBeUndefined();
+  });
+
+  it('usa o modelo reserva quando a cota do principal acaba (429)', async () => {
+    mockRpc.mockResolvedValue({ data: [], error: null });
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 429, json: async () => ({}) } as never);
+    mockMessagesCreate.mockResolvedValueOnce(criarRespostaTexto('{"resposta":"Reserva","fontes":[],"atalhos":[]}'));
+
+    const r = await processarAssistente([{ role: 'user', content: 'Oi' }], PERFIL_ID_TESTE);
+
+    expect(r.resposta).toBe('Reserva');
+    const segunda = JSON.parse((mockFetch.mock.calls[1] as unknown as [string, { body: string }])[1].body);
+    expect(segunda.model).toBe('openai/gpt-oss-20b');
+  });
+
+  it('desiste com 503 quando o reserva também esgota a cota', async () => {
+    mockRpc.mockResolvedValue({ data: [], error: null });
+    mockFetch
+      .mockResolvedValueOnce({ ok: false, status: 429, json: async () => ({}) } as never)
+      .mockResolvedValueOnce({ ok: false, status: 429, json: async () => ({}) } as never);
+
+    await expect(
+      processarAssistente([{ role: 'user', content: 'Oi' }], PERFIL_ID_TESTE)
+    ).rejects.toBeInstanceOf(AssistenteIndisponivelError);
   });
 });

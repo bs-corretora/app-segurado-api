@@ -8,7 +8,7 @@ dos PRs mesclados.
 ## [Não lançado]
 
 ### Alterado
-- Assistente virtual passa a usar a Groq (`GROQ_API_KEY`, modelo `llama-3.3-70b-versatile`) no lugar
+- Assistente virtual passa a usar a Groq (`GROQ_API_KEY`, modelo `openai/gpt-oss-120b`) no lugar
   da Anthropic; falha do provedor responde 503 (#57).
 
 ## [0.5.0] - 2026-11-18
