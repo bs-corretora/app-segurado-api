@@ -46,10 +46,19 @@ vi.mock('@/lib/supabase/server', () => ({
   })),
 }));
 
+// Mock do env
+vi.mock('@/lib/env', () => ({
+  getEnv: vi.fn(() => ({
+    ANTHROPIC_API_KEY: 'test-key',
+    ASSISTENTE_MODELO: 'claude-3-5-haiku-20241022',
+  })),
+}));
+
 // Now import the modules under test
 import { processarAssistente } from '@/lib/services/assistente';
 import { buscarConhecimento } from '@/lib/services/conhecimento';
 import { dashboard, listarApolices, buscarApolice, listarContatos, listarNotificacoes } from '@/lib/services/leitura';
+import { getEnv } from '@/lib/env';
 
 const PERFIL_ID_TESTE = '22222222-2222-2222-2222-222222222222';
 
@@ -149,7 +158,7 @@ describe('Assistente Virtual - Serviço', () => {
             rank: 0.98,
           },
           {
-            id: '66666666-6666-6666-6666-666666666666',
+            id: '66666666-66666666-66666666-666666666666',
             titulo: 'Como criar sua conta e entrar no app',
             conteudo: 'Para criar sua conta...',
             categoria: 'CONTA',
@@ -188,7 +197,10 @@ describe('Assistente Virtual - Serviço', () => {
     ];
 
     it('deve retornar erro amigável quando ANTHROPIC_API_KEY não está configurada', async () => {
-      delete process.env.ANTHROPIC_API_KEY;
+      vi.mocked(getEnv).mockReturnValueOnce({
+        ANTHROPIC_API_KEY: '',
+        ASSISTENTE_MODELO: 'claude-3-5-haiku-20241022',
+      });
 
       const resultado = await processarAssistente(mensagensBase, PERFIL_ID_TESTE);
 
@@ -197,7 +209,7 @@ describe('Assistente Virtual - Serviço', () => {
       expect(resultado.atalhos).toEqual([]);
     });
 
-    it('deve responder sobre uso do app usando RAG (sem tools)', async () => {
+    it('deve responder sobre uso do app usando RAG (sem tools) - fontes e atalhos no novo formato', async () => {
       mockRpc.mockResolvedValue({
         data: [
           {
@@ -205,7 +217,7 @@ describe('Assistente Virtual - Serviço', () => {
             titulo: 'Como abrir um sinistro pelo aplicativo',
             conteudo: 'Para abrir um sinistro: 1) Acesse a tela Sinistros...',
             categoria: 'APP_USO',
-            tags: ['sinistro', 'abrir'],
+            atualizado_em: '2026-11-17T12:00:00-03:00',
             rank: 0.95,
           },
         ],
@@ -216,8 +228,8 @@ describe('Assistente Virtual - Serviço', () => {
         criarRespostaTexto(
           JSON.stringify({
             resposta: 'Para abrir um sinistro, acesse a tela "Sinistros" no menu inferior e toque em "Novo Sinistro".',
-            fontes: ['Como abrir um sinistro pelo aplicativo'],
-            atalhos: [{ label: 'Abrir sinistro', rota: '/sinistros/novo' }],
+            fontes: [{ id: '11111111-1111-1111-1111-111111111111', titulo: 'Como abrir um sinistro pelo aplicativo' }],
+            atalhos: [{ rotulo: 'Abrir sinistro', tela: '/sinistros/novo' }],
           })
         )
       );
@@ -225,9 +237,10 @@ describe('Assistente Virtual - Serviço', () => {
       const resultado = await processarAssistente(mensagensBase, PERFIL_ID_TESTE);
 
       expect(resultado.resposta).toContain('sinistro');
-      expect(resultado.fontes).toContain('Como abrir um sinistro pelo aplicativo');
-      expect(resultado.atalhos.length).toBeGreaterThan(0);
-      expect(resultado.atalhos[0].rota).toBe('/sinistros/novo');
+      expect(resultado.fontes).toHaveLength(1);
+      expect(resultado.fontes[0]).toEqual({ id: '11111111-1111-1111-1111-111111111111', titulo: 'Como abrir um sinistro pelo aplicativo' });
+      expect(resultado.atalhos).toHaveLength(1);
+      expect(resultado.atalhos[0]).toEqual({ rotulo: 'Abrir sinistro', tela: '/sinistros/novo' });
     });
 
     it('deve usar tools para buscar dados do usuário (apólices)', async () => {
@@ -249,7 +262,7 @@ describe('Assistente Virtual - Serviço', () => {
             JSON.stringify({
               resposta: 'Você tem 1 apólice ativa: Auto (AU-2026-000184), vigente até 01/10/2027.',
               fontes: [],
-              atalhos: [{ label: 'Ver minhas apólices', rota: '/apolices' }],
+              atalhos: [{ rotulo: 'Ver minhas apólices', tela: '/apolices' }],
             })
           )
         );
@@ -285,7 +298,7 @@ describe('Assistente Virtual - Serviço', () => {
             JSON.stringify({
               resposta: 'Sua apólice Auto (AU-2026-000184) tem prêmio de R$ 2.400,00 e vigência até 01/10/2027.',
               fontes: [],
-              atalhos: [{ label: 'Ver detalhes da apólice', rota: '/apolices/6f1c1111-1111-1111-1111-111111111111' }],
+              atalhos: [{ rotulo: 'Ver detalhes da apólice', tela: '/apolices/6f1c1111-1111-1111-1111-111111111111' }],
             })
           )
         );
@@ -314,7 +327,7 @@ describe('Assistente Virtual - Serviço', () => {
             JSON.stringify({
               resposta: 'Você tem 1 sinistro: SIN-2026-000123 (Colisão) em análise desde 03/10/2026.',
               fontes: [],
-              atalhos: [{ label: 'Ver meus sinistros', rota: '/sinistros' }],
+              atalhos: [{ rotulo: 'Ver meus sinistros', tela: '/sinistros' }],
             })
           )
         );
@@ -340,7 +353,7 @@ describe('Assistente Virtual - Serviço', () => {
             JSON.stringify({
               resposta: 'Para assistência 24h do seu seguro Auto: 0800 700 1000 ou WhatsApp (81) 90000-0000.',
               fontes: [],
-              atalhos: [{ label: 'Ver contatos', rota: '/contatos' }],
+              atalhos: [{ rotulo: 'Ver contatos', tela: '/contatos' }],
             })
           )
         );
@@ -369,7 +382,7 @@ describe('Assistente Virtual - Serviço', () => {
             JSON.stringify({
               resposta: 'Você tem 1 notificação não lida: "Sinistro atualizado" - SIN-2026-000123 em análise.',
               fontes: [],
-              atalhos: [{ label: 'Ver notificações', rota: '/notificacoes' }],
+              atalhos: [{ rotulo: 'Ver notificações', tela: '/notificacoes' }],
             })
           )
         );
@@ -400,7 +413,7 @@ describe('Assistente Virtual - Serviço', () => {
             JSON.stringify({
               resposta: 'Olá Maria! Você tem 2 apólices ativas e 2 notificações não lidas. É cliente há 1 ano e 5 meses.',
               fontes: [],
-              atalhos: [{ label: 'Ver início', rota: '/inicio' }],
+              atalhos: [{ rotulo: 'Ver início', tela: '/inicio' }],
             })
           )
         );
@@ -456,10 +469,10 @@ describe('Assistente Virtual - Serviço', () => {
       expect(chamada.messages).toHaveLength(10);
     });
 
-    it('deve lidar com resposta do modelo sem JSON válido (fallback)', async () => {
+    it('deve lidar com resposta do modelo sem JSON válido (fallback) - fontes e atalhos no novo formato', async () => {
       mockRpc.mockResolvedValue({
         data: [
-          { id: '1', titulo: 'Como abrir sinistro', conteudo: '...', categoria: 'APP_USO', tags: [], rank: 0.9 },
+          { id: '1', titulo: 'Como abrir sinistro', conteudo: '...', categoria: 'APP_USO', atualizado_em: '2026-11-17T12:00:00-03:00', rank: 0.9 },
         ],
         error: null,
       });
@@ -470,23 +483,74 @@ describe('Assistente Virtual - Serviço', () => {
       const resultado = await processarAssistente(mensagens, PERFIL_ID_TESTE);
 
       expect(resultado.resposta).toBe('Resposta direta sem JSON estruturado.');
-      expect(resultado.fontes).toContain('Como abrir sinistro');
+      expect(resultado.fontes).toEqual([{ id: '1', titulo: 'Como abrir sinistro' }]);
+      expect(resultado.atalhos).toEqual([]);
     });
 
-    it('deve limitar iterações de tool calling a 3', async () => {
+    it('deve limitar chamadas de ferramenta a 5 por pergunta', async () => {
       mockRpc.mockResolvedValue({ data: [], error: null });
 
       vi.mocked(listarApolices).mockResolvedValue({ itens: [], total: 0 });
 
+      // Sempre retorna tool_use para forçar loop
       mockMessagesCreate.mockResolvedValue(criarRespostaToolUse([criarToolUse('tool-1', 'buscar_apolices', {})]));
 
       const mensagens = [{ role: 'user' as const, content: 'Teste' }];
 
       const resultado = await processarAssistente(mensagens, PERFIL_ID_TESTE);
 
-      // 1 chamada inicial + 3 iterações = 4 chamadas total
-      expect(mockMessagesCreate).toHaveBeenCalledTimes(4);
+      // 1 chamada inicial + tool calls até atingir maxToolCalls=5 ou maxIterations=5
+      expect(mockMessagesCreate).toHaveBeenCalledTimes(5);
       expect(resultado.resposta).toBeDefined();
+    });
+
+    it('deve normalizar fontes string para objeto {id, titulo}', async () => {
+      mockRpc.mockResolvedValue({ data: [], error: null });
+      vi.mocked(listarApolices).mockResolvedValue({ itens: [], total: 0 });
+
+      mockMessagesCreate
+        .mockResolvedValueOnce(criarRespostaToolUse([criarToolUse('tool-1', 'buscar_apolices', {})]))
+        .mockResolvedValueOnce(
+          criarRespostaTexto(
+            JSON.stringify({
+              resposta: 'Teste',
+              fontes: ['Fonte 1', 'Fonte 2'], // formato antigo string[]
+              atalhos: [{ rotulo: 'Ver', tela: '/teste' }],
+            })
+          )
+        );
+
+      const mensagens = [{ role: 'user' as const, content: 'Teste' }];
+      const resultado = await processarAssistente(mensagens, PERFIL_ID_TESTE);
+
+      expect(resultado.fontes).toEqual([
+        { id: '', titulo: 'Fonte 1' },
+        { id: '', titulo: 'Fonte 2' },
+      ]);
+    });
+
+    it('deve normalizar atalhos com label/rota para rotulo/tela', async () => {
+      mockRpc.mockResolvedValue({ data: [], error: null });
+      vi.mocked(listarApolices).mockResolvedValue({ itens: [], total: 0 });
+
+      mockMessagesCreate
+        .mockResolvedValueOnce(criarRespostaToolUse([criarToolUse('tool-1', 'buscar_apolices', {})]))
+        .mockResolvedValueOnce(
+          criarRespostaTexto(
+            JSON.stringify({
+              resposta: 'Teste',
+              fontes: [],
+              atalhos: [{ label: 'Ver apólices', rota: '/apolices' }], // formato antigo
+            })
+          )
+        );
+
+      const mensagens = [{ role: 'user' as const, content: 'Teste' }];
+      const resultado = await processarAssistente(mensagens, PERFIL_ID_TESTE);
+
+      expect(resultado.atalhos).toEqual([
+        { rotulo: 'Ver apólices', tela: '/apolices' },
+      ]);
     });
   });
 });

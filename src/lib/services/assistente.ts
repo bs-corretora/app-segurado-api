@@ -1,6 +1,7 @@
 import { Anthropic } from '@anthropic-ai/sdk';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { buscarConhecimento } from '@/lib/services/conhecimento';
+import { getEnv } from '@/lib/env';
 import {
   dashboard,
   listarApolices,
@@ -14,10 +15,21 @@ export interface MensagemHistorico {
   content: string;
 }
 
+export interface FonteConhecimento {
+  id: string;
+  titulo: string;
+}
+
+export interface AtalhoNavegacao {
+  rotulo: string;
+  tela: string;
+  id?: string;
+}
+
 export interface AssistenteResponse {
   resposta: string;
-  fontes: string[];
-  atalhos: Array<{ label: string; rota: string }>;
+  fontes: FonteConhecimento[];
+  atalhos: AtalhoNavegacao[];
 }
 
 interface ToolResult {
@@ -114,16 +126,16 @@ COMPORTAMENTO:
 - Se a pergunta for sobre o app em geral (como fazer algo, regras, prazos), use o conhecimento RAG.
 - Se a pergunta for sobre dados do usuário, use as tools apropriadas.
 - Sempre cite as fontes (trechos do conhecimento) quando usar RAG.
-- Sempre sugira atalhos de navegação (rotas do app) relevantes à resposta.
+- Sempre sugira atalhos de navegação (telas do app) relevantes à resposta.
 
 FORMATO DE RESPOSTA (JSON):
 {
   "resposta": "texto da resposta em português",
-  "fontes": ["trecho 1 do conhecimento usado", "trecho 2..."],
-  "atalhos": [{"label": "Ver minhas apólices", "rota": "/apolices"}, {"label": "Abrir sinistro", "rota": "/sinistros/novo"}]
+  "fontes": [{"id": "uuid", "titulo": "Título do trecho"}, {"id": "uuid", "titulo": "Outro título..."}],
+  "atalhos": [{"rotulo": "Ver minhas apólices", "tela": "/apolices", "id": "uuid-opcional"}, {"rotulo": "Abrir sinistro", "tela": "/sinistros/novo"}]
 }
 
-ROTAS DO APP DISPONÍVEIS PARA ATALHOS:
+TELAS DO APP DISPONÍVEIS PARA ATALHOS:
 - /inicio (dashboard)
 - /apolices (lista de apólices)
 - /apolices/:id (detalhe da apólice)
@@ -195,8 +207,8 @@ export async function processarAssistente(
   mensagens: MensagemHistorico[],
   perfilId: string
 ): Promise<AssistenteResponse> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
+  const { ANTHROPIC_API_KEY, ASSISTENTE_MODELO } = getEnv();
+  if (!ANTHROPIC_API_KEY) {
     console.error('[assistente] ANTHROPIC_API_KEY não configurada');
     return {
       resposta:
@@ -206,7 +218,7 @@ export async function processarAssistente(
     };
   }
 
-  const anthropic = new Anthropic({ apiKey });
+  const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
   // Última mensagem do usuário para busca RAG
   const ultimaUsuario = [...mensagens].reverse().find((m) => m.role === 'user');
@@ -237,22 +249,25 @@ export async function processarAssistente(
 
   // Primeira chamada ao modelo
   let response = await anthropic.messages.create({
-    model: 'claude-3-5-haiku-20241022',
-    max_tokens: 2000,
+    model: ASSISTENTE_MODELO,
+    max_tokens: 1500,
     system: systemPromptCompleto,
     messages: mensagensClaude,
     tools: TOOLS,
     tool_choice: { type: 'auto' },
   });
 
-  // Loop de tool calling
+  // Loop de tool calling - máximo 5 chamadas de ferramenta por pergunta
   const toolResults: ToolResult[] = [];
+  let toolCallsCount = 0;
+  const maxToolCalls = 5;
   let iterations = 0;
-  const maxIterations = 3;
+  const maxIterations = 5;
 
   while (
     response.stop_reason === 'tool_use' &&
-    iterations < maxIterations
+    iterations < maxIterations &&
+    toolCallsCount < maxToolCalls
   ) {
     iterations++;
     const toolUses = response.content.filter(
@@ -260,6 +275,8 @@ export async function processarAssistente(
     );
 
     for (const toolUse of toolUses) {
+      if (toolCallsCount >= maxToolCalls) break;
+      toolCallsCount++;
       try {
         const result = await executarTool(
           toolUse.name,
@@ -276,10 +293,12 @@ export async function processarAssistente(
       }
     }
 
+    if (toolCallsCount >= maxToolCalls) break;
+
     // Próxima chamada com resultados das tools
     response = await anthropic.messages.create({
-      model: 'claude-3-5-haiku-20241022',
-      max_tokens: 2000,
+      model: ASSISTENTE_MODELO,
+      max_tokens: 1500,
       system: systemPromptCompleto,
       messages: [
         ...mensagensClaude,
@@ -307,24 +326,46 @@ export async function processarAssistente(
   // Tenta parsear JSON da resposta
   let respostaFinal: AssistenteResponse;
   try {
-    const parsed = JSON.parse(textoFinal);
+    const parsed = JSON.parse(textoFinal) as {
+      resposta?: string;
+      fontes?: Array<{ id?: string; titulo?: string } | string>;
+      atalhos?: Array<{ rotulo?: string; label?: string; tela?: string; rota?: string; id?: string }>;
+    };
+    // Normaliza fontes para formato { id, titulo }
+    const fontesNormalizadas: FonteConhecimento[] = Array.isArray(parsed.fontes)
+      ? parsed.fontes.map((f) =>
+          typeof f === 'string'
+            ? { id: '', titulo: f }
+            : { id: f.id ?? '', titulo: f.titulo ?? String(f) }
+        )
+      : [];
+
+    // Normaliza atalhos para formato { rotulo, tela, id? }
+    const atalhosNormalizados: AtalhoNavegacao[] = Array.isArray(parsed.atalhos)
+      ? parsed.atalhos.map((a) => ({
+          rotulo: a.rotulo ?? a.label ?? '',
+          tela: a.tela ?? a.rota ?? '',
+          id: a.id,
+        }))
+      : [];
+
     respostaFinal = {
       resposta: parsed.resposta ?? textoFinal,
-      fontes: Array.isArray(parsed.fontes) ? parsed.fontes : [],
-      atalhos: Array.isArray(parsed.atalhos) ? parsed.atalhos : [],
+      fontes: fontesNormalizadas,
+      atalhos: atalhosNormalizados,
     };
   } catch {
     // Fallback: resposta direta sem JSON estruturado
     respostaFinal = {
       resposta: textoFinal,
-      fontes: trechosConhecimento.map((t) => t.titulo),
+      fontes: trechosConhecimento.map((t) => ({ id: t.id, titulo: t.titulo })),
       atalhos: [],
     };
   }
 
   // Garante que fontes incluam títulos dos trechos usados
   if (respostaFinal.fontes.length === 0 && trechosConhecimento.length > 0) {
-    respostaFinal.fontes = trechosConhecimento.map((t) => t.titulo);
+    respostaFinal.fontes = trechosConhecimento.map((t) => ({ id: t.id, titulo: t.titulo }));
   }
 
   return respostaFinal;

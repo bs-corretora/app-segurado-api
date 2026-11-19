@@ -9,6 +9,8 @@ const limitadores = {
   esqueciSenha: new RateLimiterMemory({ keyPrefix: 'esqueci', points: 3, duration: 60 }),
   publico: new RateLimiterMemory({ keyPrefix: 'publico', points: 10, duration: 60 }),
   usuario: new RateLimiterMemory({ keyPrefix: 'usuario', points: 100, duration: 60 }),
+  // Assistente Virtual (Issue #55): 20 perguntas a cada 10 minutos por usuário
+  assistente: new RateLimiterMemory({ keyPrefix: 'assistente', points: 20, duration: 600 }),
 };
 
 export type Escopo = keyof typeof limitadores;
