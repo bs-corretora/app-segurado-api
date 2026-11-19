@@ -28,6 +28,9 @@ const envSchema = z.object({
     .optional(),
   // /api/docs e /api/openapi.json (seção 6.11). Sem valor: ligado fora de produção.
   API_DOCS: z.enum(['true', 'false']).optional(),
+  // Assistente Virtual (Issue #55)
+  ANTHROPIC_API_KEY: z.string().min(1, 'ANTHROPIC_API_KEY é obrigatória para o assistente').optional(),
+  ASSISTENTE_MODELO: z.string().default('claude-haiku-5-5'),
 });
 
 export type Env = z.infer<typeof envSchema>;

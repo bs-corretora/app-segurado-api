@@ -18,6 +18,19 @@ import {
 import { abrirSinistroSchema } from '@/lib/schemas/sinistro';
 import { cotacaoSchema, indicadoSchema } from '@/lib/schemas/escrita';
 
+// Schema do assistente (Issue #55)
+const assistenteSchema = z.object({
+  mensagens: z
+    .array(
+      z.object({
+        papel: z.enum(['usuario', 'assistente']),
+        texto: z.string().min(1).max(4000),
+      })
+    )
+    .min(1)
+    .max(10),
+});
+
 // Especificação OpenAPI 3.1 (seção 6.11). Os corpos de entrada saem dos mesmos
 // schemas Zod que as rotas usam para validar; as respostas trazem exemplos do seed.
 
@@ -200,20 +213,53 @@ export function especificacaoOpenApi() {
     security: [{ bearerSessao: [] }, { cookieSessao: [] }],
     paths: {
       '/health': {
-        get: {
-          tags: ['Infraestrutura'],
-          summary: 'Estado da API e do banco',
-          ...publica,
-          responses: {
-            200: resposta('API e banco no ar', {
-              status: 'ok',
-              banco: 'ok',
-              timestamp: '2026-10-29T21:47:10.023Z',
-            }),
-            503: resposta('Banco indisponível'),
-          },
-        },
-      },
+              get: {
+                tags: ['Infraestrutura'],
+                summary: 'Estado da API e do banco',
+                ...publica,
+                responses: {
+                  200: resposta('API e banco no ar', {
+                    status: 'ok',
+                    banco: 'ok',
+                    timestamp: '2026-10-29T21:47:10.023Z',
+                  }),
+                  503: resposta('Banco indisponível'),
+                },
+              },
+            },
+            '/assistente': {
+              post: {
+                tags: ['Infraestrutura'],
+                summary: 'Assistente Virtual do Segurado (Claude Haiku)',
+                description:
+                  'Responde dúvidas sobre o app e consulta dados do usuário autenticado via tools de leitura.\n' +
+                  'Rate limit: 20 perguntas a cada 10 minutos por usuário.\n' +
+                  'Retorna 401 se Bearer token ausente/inválido; 429 se rate limit excedido; 503 se ANTHROPIC_API_KEY não configurada.\n' +
+                  'LGPD: não persiste histórico nem loga conteúdo das mensagens.',
+                ...autenticada,
+                requestBody: corpo(assistenteSchema, {
+                  mensagens: [
+                    { papel: 'usuario', texto: 'quando vence minha apólice de auto?' },
+                  ],
+                }),
+                responses: {
+                  200: resposta('Resposta do assistente', {
+                    resposta:
+                      'Sua apólice Auto (AU-2026-000184) vence em 01/10/2027.',
+                    fontes: [
+                      { id: '6f1c1111-1111-1111-1111-111111111111', titulo: 'Apólice Auto' },
+                    ],
+                    atalhos: [
+                      { rotulo: 'Ver apólice', tela: '/apolices/6f1c1111-1111-1111-1111-111111111111' },
+                    ],
+                  }),
+                  400: ref('Validacao'),
+                  401: ref('NaoAutenticado'),
+                  429: ref('LimiteExcedido'),
+                  503: resposta('Assistente indisponível (ANTHROPIC_API_KEY não configurada)'),
+                },
+              },
+            },
       '/auth/login': {
         post: {
           tags: ['Autenticação e conta'],

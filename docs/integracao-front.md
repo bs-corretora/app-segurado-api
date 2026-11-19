@@ -208,6 +208,7 @@ resposta está no Swagger, com exemplo real.
 | Minhas indicações | `GET /indicacoes` | |
 | Notificações | `GET /notificacoes` | `?nao_lidas=true` para só as não lidas |
 | Marcar como lida | `PATCH /notificacoes/{id}/lida` | |
+| Assistente Virtual | `POST /assistente` | `{ mensagens: [{ papel, texto }] }` — histórico max 10; resposta: `{ resposta, fontes[], atalhos[] }`; rate limit 20/10min |
 | Perfil | `GET /me` | |
 | Editar dados | `PATCH /me` | só `telefone` e `aceita_marketing` |
 | Trocar senha | `PATCH /me/senha` `{senha_atual, nova_senha}` | 204; senha atual errada dá 400 |
@@ -262,7 +263,39 @@ Teste com moderação; se não chegar, espere e tente mais tarde.
   `await` é bloqueado. Use `window.location.href = url`, ou abra a aba vazia no clique
   (`const aba = window.open('')`) e depois preencha `aba.location = url`.
 
-## 7. CORS
+## 9. Assistente Virtual
+
+`POST /assistente`
+
+Envie o histórico recente (máx. 10 mensagens) com `papel` (`usuario` ou `assistente`) e `texto`.
+
+```ts
+await api('/assistente', {
+  method: 'POST',
+  corpo: {
+    mensagens: [
+      { papel: 'usuario', texto: 'quando vence minha apólice de auto?' },
+    ],
+  },
+});
+```
+
+Resposta:
+
+```ts
+{
+  resposta: 'Sua apólice Auto (AU-2026-000184) vence em 01/10/2027.',
+  fontes: [{ id: '6f1c1111-1111-1111-1111-111111111111', titulo: 'Apólice Auto' }],
+  atalhos: [{ rotulo: 'Ver apólice', tela: '/apolices/6f1c1111-1111-1111-1111-111111111111' }]
+}
+```
+
+- **Rate limit**: 20 perguntas a cada 10 minutos por usuário (429 se exceder).
+- **Autenticação**: Bearer token obrigatório (401 se ausente/inválido).
+- **503**: `ANTHROPIC_API_KEY` não configurada no servidor.
+- **LGPD**: não persiste histórico nem loga conteúdo das mensagens.
+- **Segurança**: isolamento por sessão — o modelo só acessa dados do usuário autenticado via tools de leitura.
+- **Atalhos**: usem `tela` (ex.: `/apolices/...`) para navegar direto à tela.
 
 O navegador só deixa o app chamar a API se o endereço do app estiver liberado no servidor.
 Já liberados: `http://localhost:5173` (o `npm run dev` do Vite), `http://localhost:8081` e
