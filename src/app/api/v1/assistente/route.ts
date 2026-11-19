@@ -4,7 +4,7 @@ import { exigirSessao } from '@/lib/security/sessao';
 import { limitar } from '@/lib/security/rate-limit';
 import { getEnv } from '@/lib/env';
 import { ok, erro, falhaBanco } from '@/lib/api-response';
-import { processarAssistente } from '@/lib/services/assistente';
+import { processarAssistente, AssistenteIndisponivelError } from '@/lib/services/assistente';
 
 // Schema de validação da entrada (contrato Issue #55)
 const assistenteSchema = z.object({
@@ -32,10 +32,10 @@ export async function POST(req: NextRequest) {
     const rateLimit = await limitar('assistente', sessao.perfil_id);
     if (rateLimit) return rateLimit;
 
-    // 3. Verifica se ANTHROPIC_API_KEY está configurada (retorna 503 se não)
-    const { ANTHROPIC_API_KEY } = getEnv();
-    if (!ANTHROPIC_API_KEY) {
-      console.error('[assistente] ANTHROPIC_API_KEY não configurada');
+    // 3. Verifica se GROQ_API_KEY está configurada (retorna 503 se não)
+    const { GROQ_API_KEY } = getEnv();
+    if (!GROQ_API_KEY) {
+      console.error('[assistente] GROQ_API_KEY não configurada');
       return erro(503, 'INDISPONIVEL', 'Assistente temporariamente indisponível');
     }
 
@@ -74,7 +74,11 @@ export async function POST(req: NextRequest) {
     return ok(resultado);
   } catch (e) {
     const duracao = Date.now() - inicio;
-    console.error('[assistente] erro status=500 perfil=%s duracao_ms=%d', duracao);
+    if (e instanceof AssistenteIndisponivelError) {
+      console.error('[assistente] provedor indisponível duracao_ms=%d: %s', duracao, e.message);
+      return erro(503, 'INDISPONIVEL', 'Assistente temporariamente indisponível');
+    }
+    console.error('[assistente] erro status=500 duracao_ms=%d', duracao);
     return falhaBanco('POST /api/v1/assistente', e);
   }
 }

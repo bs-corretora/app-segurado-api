@@ -5,6 +5,12 @@ Mudanças relevantes da API do App do Segurado. Formato baseado em
 [SemVer](https://semver.org/lang/pt-BR/). As versões até a 0.4.0 foram reconstruídas a partir
 dos PRs mesclados.
 
+## [Não lançado]
+
+### Alterado
+- Assistente virtual passa a usar a Groq (`GROQ_API_KEY`, modelo `llama-3.3-70b-versatile`) no lugar
+  da Anthropic; falha do provedor responde 503 (#57).
+
 ## [0.5.0] - 2026-11-18
 
 ### Adicionado

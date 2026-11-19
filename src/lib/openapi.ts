@@ -234,7 +234,7 @@ export function especificacaoOpenApi() {
                 description:
                   'Responde dúvidas sobre o app e consulta dados do usuário autenticado via tools de leitura.\n' +
                   'Rate limit: 20 perguntas a cada 10 minutos por usuário.\n' +
-                  'Retorna 401 se Bearer token ausente/inválido; 429 se rate limit excedido; 503 se ANTHROPIC_API_KEY não configurada.\n' +
+                  'Retorna 401 se Bearer token ausente/inválido; 429 se rate limit excedido; 503 se GROQ_API_KEY não configurada ou o provedor de IA estiver fora do ar.\n' +
                   'LGPD: não persiste histórico nem loga conteúdo das mensagens.',
                 ...autenticada,
                 requestBody: corpo(assistenteSchema, {
@@ -256,7 +256,7 @@ export function especificacaoOpenApi() {
                   400: ref('Validacao'),
                   401: ref('NaoAutenticado'),
                   429: ref('LimiteExcedido'),
-                  503: resposta('Assistente indisponível (ANTHROPIC_API_KEY não configurada)'),
+                  503: resposta('Assistente indisponível (GROQ_API_KEY ausente ou provedor fora do ar)'),
                 },
               },
             },

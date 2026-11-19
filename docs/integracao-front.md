@@ -292,7 +292,7 @@ Resposta:
 
 - **Rate limit**: 20 perguntas a cada 10 minutos por usuário (429 se exceder).
 - **Autenticação**: Bearer token obrigatório (401 se ausente/inválido).
-- **503**: `ANTHROPIC_API_KEY` não configurada no servidor.
+- **503**: `GROQ_API_KEY` não configurada no servidor ou provedor de IA (Groq) fora do ar.
 - **LGPD**: não persiste histórico nem loga conteúdo das mensagens.
 - **Segurança**: isolamento por sessão — o modelo só acessa dados do usuário autenticado via tools de leitura.
 - **Atalhos**: usem `tela` (ex.: `/apolices/...`) para navegar direto à tela.
