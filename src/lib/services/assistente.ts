@@ -61,6 +61,18 @@ interface RespostaModelo {
 /** Falha do provedor de IA (fora do ar, cota, chave inválida). A rota responde 503. */
 export class AssistenteIndisponivelError extends Error {}
 
+/**
+ * O modelo tentou chamar uma ferramenta que não existe (o gpt-oss às vezes "chama" uma
+ * ferramenta `json` para entregar a resposta final). A Groq recusa com `tool_use_failed`.
+ */
+class FerramentaInexistenteError extends AssistenteIndisponivelError {}
+
+/** Cota de tokens por minuto do modelo esgotada (429). Cada modelo da Groq tem a própria cota. */
+class CotaEsgotadaError extends AssistenteIndisponivelError {}
+
+/** Modelo reserva, usado quando o principal esgota a cota do minuto. */
+const MODELO_RESERVA = 'openai/gpt-oss-20b';
+
 // Tools disponíveis para o modelo (apenas leitura, vinculadas ao perfil_id da sessão)
 const TOOLS: FerramentaDef[] = [
   {
@@ -230,7 +242,8 @@ async function executarTool(
 async function chamarModelo(
   apiKey: string,
   modelo: string,
-  mensagens: MensagemModelo[]
+  mensagens: MensagemModelo[],
+  comFerramentas = true
 ): Promise<RespostaModelo> {
   let res: Response;
   try {
@@ -239,14 +252,18 @@ async function chamarModelo(
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: modelo,
-        max_tokens: 1500,
+        max_tokens: 800,
         temperature: 0.2,
         messages: mensagens,
-        tools: TOOLS.map((t) => ({
-          type: 'function',
-          function: { name: t.name, description: t.description, parameters: t.input_schema },
-        })),
-        tool_choice: 'auto',
+        ...(comFerramentas
+          ? {
+              tools: TOOLS.map((t) => ({
+                type: 'function',
+                function: { name: t.name, description: t.description, parameters: t.input_schema },
+              })),
+              tool_choice: 'auto',
+            }
+          : {}),
       }),
       signal: AbortSignal.timeout(30_000),
     });
@@ -254,10 +271,37 @@ async function chamarModelo(
     throw new AssistenteIndisponivelError(`falha de rede no provedor: ${(e as Error).message}`);
   }
   if (!res.ok) {
+    if (res.status === 400) {
+      const corpo = (await res.json().catch(() => null)) as { error?: { code?: string } } | null;
+      if (corpo?.error?.code === 'tool_use_failed') {
+        throw new FerramentaInexistenteError('modelo chamou ferramenta inexistente');
+      }
+    }
+    if (res.status === 429) throw new CotaEsgotadaError(`provedor respondeu 429 (${modelo})`);
     // Só o status vai para o log: o corpo pode repetir a pergunta do usuário.
     throw new AssistenteIndisponivelError(`provedor respondeu ${res.status}`);
   }
   return (await res.json()) as RespostaModelo;
+}
+
+/**
+ * Chama com ferramentas. Se o modelo inventar uma, repete sem ferramentas para vir texto.
+ * Se a cota do minuto acabar, repete no modelo reserva.
+ */
+async function chamarComRecuo(
+  apiKey: string,
+  modelo: string,
+  mensagens: MensagemModelo[]
+): Promise<RespostaModelo> {
+  try {
+    return await chamarModelo(apiKey, modelo, mensagens);
+  } catch (e) {
+    if (e instanceof CotaEsgotadaError && modelo !== MODELO_RESERVA) {
+      return chamarComRecuo(apiKey, MODELO_RESERVA, mensagens);
+    }
+    if (!(e instanceof FerramentaInexistenteError)) throw e;
+    return chamarModelo(apiKey, modelo, mensagens, false);
+  }
 }
 
 /** Tira cercas de código (```json ... ```) que alguns modelos colocam em volta do JSON. */
@@ -286,7 +330,7 @@ export async function processarAssistente(
   const consultaRag = ultimaUsuario?.content ?? '';
 
   // Busca na base de conhecimento (RAG)
-  const trechosConhecimento = await buscarConhecimento(consultaRag, 5);
+  const trechosConhecimento = await buscarConhecimento(consultaRag, 3);
 
   const contextoRag =
     trechosConhecimento.length > 0
@@ -302,7 +346,7 @@ export async function processarAssistente(
     ...mensagens.slice(-10).map((m) => ({ role: m.role, content: m.content }) as MensagemModelo),
   ];
 
-  let resposta = await chamarModelo(GROQ_API_KEY, ASSISTENTE_MODELO, conversa);
+  let resposta = await chamarComRecuo(GROQ_API_KEY, ASSISTENTE_MODELO, conversa);
 
   // Loop de tool calling - máximo 5 chamadas de ferramenta por pergunta
   let toolCallsCount = 0;
@@ -340,7 +384,7 @@ export async function processarAssistente(
 
     if (toolCallsCount >= maxToolCalls) break;
 
-    resposta = await chamarModelo(GROQ_API_KEY, ASSISTENTE_MODELO, conversa);
+    resposta = await chamarComRecuo(GROQ_API_KEY, ASSISTENTE_MODELO, conversa);
   }
 
   const textoFinal = semCercas(resposta.choices[0]?.message.content ?? '');
