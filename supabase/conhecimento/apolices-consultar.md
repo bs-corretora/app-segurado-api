@@ -1,3 +1,3 @@
 # Como consultar minhas apólices ativas
 
-Na tela inicial ("Início") você vê um resumo das apólices ativas. Para ver todas: vá em "Apólices" no menu inferior. Lá estão listadas todas as suas apólices com status (ATIVA, VENCIDA, CANCELADA). Toque numa apólice para ver detalhes: número, produto, vigência (início e fim), prêmio, coberturas e botão para baixar o PDF.
+Na aba "Início" você vê "Minhas apólices ativas". Para ver todas, toque em "Ver todas as apólices". Cada apólice mostra o status: Ativa, Vencida ou Cancelada. Toque numa apólice para ver o detalhe: número, início da vigência, fim da vigência e prêmio. Para abrir o documento, toque em "Ver apólice em PDF"; ele abre em outra aba. Se o PDF ainda não estiver disponível, o app avisa.

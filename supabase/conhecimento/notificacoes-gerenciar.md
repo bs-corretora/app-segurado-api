@@ -1,3 +1,3 @@
-# Como ver e gerenciar notificações
+# Como ver as notificações
 
-O ícone de sino no canto superior direito mostra notificações não lidas. Toque para ver todas: de sistema (status de sinistro, cotação respondida), marketing e alertas. Toque numa notificação para ir direto à tela relacionada (ex: abrir o sinistro que mudou de status). Deslize para marcar como lida ou use "Marcar todas como lidas".
+O sino fica no canto superior direito do cabeçalho; um número vermelho indica quantas notificações não foram lidas. Toque no sino para abrir "Notificações". Os avisos de sinistro, cotação e renovação chegam ali. Toque numa notificação para marcá-la como lida e abrir a tela relacionada (sinistro, cotação ou apólice). Não há botão para marcar todas como lidas.

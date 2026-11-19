@@ -1,5 +1,5 @@
 # Como trocar ou recuperar sua senha
 
-Para trocar a senha sabendo a atual: vá em "Perfil" (ícone de usuário no canto superior) > "Alterar Senha". Informe a senha atual e a nova senha (mínimo 8 caracteres, 1 maiúscula, 1 minúscula, 1 número, 1 especial).
+Para trocar a senha sabendo a atual: aba "Configurações" > "Dados cadastrais e senha". Na seção "Trocar senha", informe a senha atual e a nova (mínimo 8 caracteres; a nova precisa ser diferente da atual) e toque em "Trocar senha".
 
-Se esqueceu a senha: na tela de login, toque em "Esqueci a senha". Informe seu CPF ou e-mail cadastrado. Você receberá um link por e-mail para criar uma nova senha. O link expira em 1 hora. Se não receber o e-mail, verifique a pasta de spam ou contate o suporte.
+Se esqueceu a senha: na tela de entrada, toque em "Esqueci minha senha", informe seu e-mail e toque para enviar. Se o e-mail estiver cadastrado, você recebe um link para criar a nova senha. Depois, volte ao app e entre.

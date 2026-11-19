@@ -1,9 +1,9 @@
-# Como instalar o app na tela inicial (PWA)
+# Como instalar o app na tela inicial
 
-O app pode ser instalado direto no seu celular, funcionando como um app nativo.
+O app pode ser instalado na tela inicial do celular.
 
-**No Android (Chrome):** 1) Abra o app no Chrome. 2) Toque no menu ⋮ (três pontos) > "Instalar app" ou "Adicionar à tela inicial". 3) Confirme. O ícone aparecerá na tela inicial e na gaveta de apps.
+**Android (Chrome):** quando o navegador permite a instalação, aparece em "Configurações" o item "Instalar o app na tela inicial". Toque nele e confirme.
 
-**No iOS (Safari):** 1) Abra o app no Safari. 2) Toque no botão de compartilhar (quadrado com seta para cima). 3) Role para baixo e toque em "Adicionar à Tela de Início". 4) Confirme o nome e toque em "Adicionar". O ícone aparecerá na tela inicial.
+**iPhone ou iPad (Safari):** em "Configurações", toque em "Instalar o app na tela inicial" e siga o passo a passo: 1) toque no botão Compartilhar (quadrado com seta para cima); 2) role e toque em "Adicionar à Tela de Início"; 3) toque em "Adicionar".
 
-Após instalar, o app abre em tela cheia, sem barra do navegador, e funciona offline para conteúdos já carregados.
+Se o item não aparecer em "Configurações", o app já está instalado ou o navegador não oferece a instalação.

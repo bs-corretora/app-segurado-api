@@ -1,3 +1,3 @@
 # Como solicitar uma cotação de seguro
 
-No menu inferior, toque em "Cotações" e depois em "Nova Cotação". Escolha o produto (Auto, Residencial, Vida, Empresarial) e o motivo (Novo ou Renovação). Preencha os dados solicitados conforme o produto: para Auto informe placa, modelo, ano; para Residencial informe tipo de imóvel e valor da edificação; para Vida informe idade e valor desejado. Envie e aguarde a resposta da corretora. Você será notificado quando houver resposta.
+Toque na aba "Cotação" e depois em "Nova cotação". Escolha o seguro: Auto, Residencial, Vida ou Empresarial. Na tela "Solicitar cotação", preencha: tipo de pedido (Novo seguro ou Renovação), tipo de cobertura, telefone para contato (com DDD) e detalhes do pedido. Toque em "Enviar pedido". Em "Meus pedidos" você acompanha o status (Recebida, Em análise ou Respondida). Quando a corretora responder, você é avisado nas notificações e vê o valor estimado e a resposta no detalhe do pedido.

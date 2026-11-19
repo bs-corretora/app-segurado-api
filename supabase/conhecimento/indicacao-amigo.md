@@ -1,3 +1,3 @@
-# Como indicar um amigo e ganhar benefícios
+# Como indicar um amigo
 
-Acesse "Indicações" no menu inferior. Toque em "Indicar Amigo". Preencha nome, telefone e e-mail (opcional) do indicado. Seu código de indicação único é gerado automaticamente. Quando o indicado contratar um seguro usando seu código, você recebe o benefício conforme a campanha vigente. Acompanhe o status das suas indicações na mesma tela.
+Toque em "Indicar" no card "Indique amigos" da aba "Início", ou vá em "Configurações" > "Indique amigos". A tela mostra seu link de indicação e seu código. Toque em "Copiar" ou "Compartilhar" para enviar o link a quem você quiser. Quem fizer cotação pelo seu link aparece em "Minhas indicações", com o status (Nova, Contatada ou Convertida). O app não informa nenhum benefício ou prêmio por indicação; para saber, fale com a corretora.
