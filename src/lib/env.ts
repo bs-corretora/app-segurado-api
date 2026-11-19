@@ -32,7 +32,7 @@ const envSchema = z.object({
   // Chave da Groq (https://console.groq.com/keys). Sem ela a rota responde 503.
   GROQ_API_KEY: z.string().min(1, 'GROQ_API_KEY vazia').optional(),
   // Modelo da Groq com suporte a ferramentas (tool calling).
-  ASSISTENTE_MODELO: z.string().default('llama-3.3-70b-versatile'),
+  ASSISTENTE_MODELO: z.string().default('openai/gpt-oss-120b'),
 });
 
 export type Env = z.infer<typeof envSchema>;

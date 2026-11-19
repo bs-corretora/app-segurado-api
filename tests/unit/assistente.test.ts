@@ -49,7 +49,7 @@ vi.mock('@/lib/supabase/server', () => ({
 vi.mock('@/lib/env', () => ({
   getEnv: vi.fn(() => ({
     GROQ_API_KEY: 'test-key',
-    ASSISTENTE_MODELO: 'llama-3.3-70b-versatile',
+    ASSISTENTE_MODELO: 'openai/gpt-oss-120b',
   })),
 }));
 
@@ -214,7 +214,7 @@ describe('Assistente Virtual - Serviço', () => {
     it('deve retornar erro amigável quando GROQ_API_KEY não está configurada', async () => {
       vi.mocked(getEnv).mockReturnValueOnce({
         GROQ_API_KEY: '',
-        ASSISTENTE_MODELO: 'llama-3.3-70b-versatile',
+        ASSISTENTE_MODELO: 'openai/gpt-oss-120b',
       });
 
       const resultado = await processarAssistente(mensagensBase, PERFIL_ID_TESTE);
@@ -611,7 +611,7 @@ describe('Assistente Virtual - provedor Groq', () => {
     expect(url).toBe('https://api.groq.com/openai/v1/chat/completions');
     expect(init.headers.Authorization).toBe('Bearer test-key');
     const corpo = JSON.parse(init.body);
-    expect(corpo.model).toBe('llama-3.3-70b-versatile');
+    expect(corpo.model).toBe('openai/gpt-oss-120b');
     expect(corpo.messages[0].role).toBe('system');
     expect(corpo.tools[0]).toMatchObject({ type: 'function', function: { name: 'buscar_apolices' } });
   });
