@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "conhecimento": "tsx scripts/sync-conhecimento.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.10.0",
@@ -28,6 +29,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "4.1.12"
   }

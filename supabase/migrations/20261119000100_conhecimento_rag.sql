@@ -1,25 +1,20 @@
 -- Sub-issue #54: Base de conhecimento RAG com Full-Text Search (tsvector) em português
--- Tabela para armazenar trechos de conhecimento (FAQ, regras, fluxos) com busca textual
+-- Tabela: conhecimento (id, titulo, conteudo, categoria, atualizado_em, busca)
 
 CREATE TABLE IF NOT EXISTS public.conhecimento (
     id UUID PRIMARY KEY DEFAULT extensions.gen_random_uuid(),
     titulo VARCHAR(200) NOT NULL,
     conteudo TEXT NOT NULL,
     categoria VARCHAR(50) NOT NULL, -- 'APP_USO', 'SINISTRO', 'COTACAO', 'APOLICE', 'GERAL'
-    tags TEXT[] DEFAULT '{}',
-    -- tsvector para busca full-text em português
-    busca_tsv tsvector GENERATED ALWAYS AS (
+    atualizado_em TIMESTAMPTZ DEFAULT now() NOT NULL,
+    -- tsvector para busca full-text em português (coluna chamada 'busca')
+    busca tsvector GENERATED ALWAYS AS (
         to_tsvector('portuguese', titulo || ' ' || conteudo)
-    ) STORED,
-    criado_em TIMESTAMPTZ DEFAULT now() NOT NULL,
-    atualizado_em TIMESTAMPTZ DEFAULT now() NOT NULL
+    ) STORED
 );
 
 -- Índice GIN para busca full-text rápida
-CREATE INDEX IF NOT EXISTS conhecimento_busca_tsv_idx ON public.conhecimento USING GIN (busca_tsv);
-
--- Índice por categoria para filtros
-CREATE INDEX IF NOT EXISTS conhecimento_categoria_idx ON public.conhecimento (categoria);
+CREATE INDEX IF NOT EXISTS conhecimento_busca_idx ON public.conhecimento USING GIN (busca);
 
 -- Trigger para atualizar 'atualizado_em'
 CREATE OR REPLACE FUNCTION public.atualizar_timestamp()
@@ -40,19 +35,18 @@ ALTER TABLE public.conhecimento ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.conhecimento FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.conhecimento TO service_role;
 
--- Função de busca full-text para o RAG
--- Retorna os trechos mais relevantes ordenados por rank (ts_rank_cd)
-CREATE OR REPLACE FUNCTION public.conhecimento_buscar(
-    p_consulta TEXT,
-    p_limite INTEGER DEFAULT 5,
-    p_categoria TEXT DEFAULT NULL
+-- Função RPC: buscar_conhecimento(pergunta text, limite int default 4)
+-- Usa websearch_to_tsquery para melhor parsing da query do usuário
+CREATE OR REPLACE FUNCTION public.buscar_conhecimento(
+    pergunta TEXT,
+    limite INT DEFAULT 4
 )
 RETURNS TABLE (
     id UUID,
     titulo VARCHAR,
     conteudo TEXT,
     categoria VARCHAR,
-    tags TEXT[],
+    atualizado_em TIMESTAMPTZ,
     rank REAL
 )
 LANGUAGE sql
@@ -64,14 +58,13 @@ AS $$
         k.titulo,
         k.conteudo,
         k.categoria,
-        k.tags,
-        ts_rank_cd(k.busca_tsv, plainto_tsquery('portuguese', p_consulta)) AS rank
+        k.atualizado_em,
+        ts_rank(k.busca, websearch_to_tsquery('portuguese', pergunta)) AS rank
     FROM public.conhecimento k
-    WHERE k.busca_tsv @@ plainto_tsquery('portuguese', p_consulta)
-      AND (p_categoria IS NULL OR k.categoria = p_categoria)
+    WHERE k.busca @@ websearch_to_tsquery('portuguese', pergunta)
     ORDER BY rank DESC
-    LIMIT p_limite;
+    LIMIT limite;
 $$;
 
-REVOKE ALL ON FUNCTION public.conhecimento_buscar(TEXT, INTEGER, TEXT) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.conhecimento_buscar(TEXT, INTEGER, TEXT) TO service_role;
+REVOKE ALL ON FUNCTION public.buscar_conhecimento(TEXT, INT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.buscar_conhecimento(TEXT, INT) TO service_role;

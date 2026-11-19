@@ -118,43 +118,31 @@ describe('Assistente Virtual - Serviço', () => {
             titulo: 'Como abrir um sinistro',
             conteudo: 'Para abrir um sinistro, acesse a tela Sinistros...',
             categoria: 'APP_USO',
-            tags: ['sinistro', 'abrir'],
+            atualizado_em: '2026-11-17T12:00:00-03:00',
             rank: 0.95,
           },
         ],
         error: null,
       });
 
-      const resultado = await buscarConhecimento('como abro sinistro', 5);
+      const resultado = await buscarConhecimento('como abro sinistro', 4);
 
       expect(resultado).toHaveLength(1);
       expect(resultado[0].titulo).toBe('Como abrir um sinistro');
       expect(resultado[0].rank).toBe(0.95);
-      expect(mockRpc).toHaveBeenCalledWith('conhecimento_buscar', {
-        p_consulta: 'como abro sinistro',
-        p_limite: 5,
-        p_categoria: null,
+      expect(resultado[0].atualizado_em).toBe('2026-11-17T12:00:00-03:00');
+      expect(mockRpc).toHaveBeenCalledWith('buscar_conhecimento', {
+        pergunta: 'como abro sinistro',
+        limite: 4,
       });
     });
 
     it('deve retornar array vazio em caso de erro', async () => {
       mockRpc.mockResolvedValue({ data: null, error: new Error('DB error') });
 
-      const resultado = await buscarConhecimento('teste', 5);
+      const resultado = await buscarConhecimento('teste', 4);
 
       expect(resultado).toEqual([]);
-    });
-
-    it('deve filtrar por categoria quando informada', async () => {
-      mockRpc.mockResolvedValue({ data: [], error: null });
-
-      await buscarConhecimento('teste', 5, 'SINISTRO');
-
-      expect(mockRpc).toHaveBeenCalledWith('conhecimento_buscar', {
-        p_consulta: 'teste',
-        p_limite: 5,
-        p_categoria: 'SINISTRO',
-      });
     });
   });
 

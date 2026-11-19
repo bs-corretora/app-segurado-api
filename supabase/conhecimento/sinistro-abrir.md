@@ -1,0 +1,3 @@
+# Como abrir um sinistro pelo aplicativo
+
+Para abrir um sinistro: 1) Acesse a tela "Sinistros" no menu inferior. 2) Toque no botão "+" ou "Novo Sinistro". 3) Selecione a apólice relacionada. 4) Preencha: tipo de sinistro (colisão, roubo, incêndio, etc.), data e hora da ocorrência, local (endereço ou referência), descrição detalhada do ocorrido. 5) Anexe fotos dos danos e documentos (boletim de ocorrência, se houver). 6) Revise e confirme. Você receberá o protocolo na hora e poderá acompanhar o status na mesma tela.

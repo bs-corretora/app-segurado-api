@@ -5,24 +5,22 @@ export interface ConhecimentoItem {
   titulo: string;
   conteudo: string;
   categoria: string;
-  tags: string[];
+  atualizado_em: string;
   rank: number;
 }
 
 /**
  * Busca trechos relevantes na base de conhecimento usando Full-Text Search (tsvector) em português.
- * Usa a função RPC `conhecimento_buscar` criada na migration.
+ * Usa a função RPC `buscar_conhecimento` criada na migration.
  */
 export async function buscarConhecimento(
   consulta: string,
-  limite: number = 5,
-  categoria?: string
+  limite: number = 4
 ): Promise<ConhecimentoItem[]> {
   const db = supabaseAdmin();
-  const { data, error } = await db.rpc('conhecimento_buscar', {
-    p_consulta: consulta,
-    p_limite: limite,
-    p_categoria: categoria ?? null,
+  const { data, error } = await db.rpc('buscar_conhecimento', {
+    pergunta: consulta,
+    limite,
   });
 
   if (error) {
