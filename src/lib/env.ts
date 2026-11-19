@@ -30,7 +30,7 @@ const envSchema = z.object({
   API_DOCS: z.enum(['true', 'false']).optional(),
   // Assistente Virtual (Issue #55)
   ANTHROPIC_API_KEY: z.string().min(1, 'ANTHROPIC_API_KEY é obrigatória para o assistente').optional(),
-  ASSISTENTE_MODELO: z.string().default('claude-3-5-haiku-20241022'),
+  ASSISTENTE_MODELO: z.string().default('claude-haiku-5-5'),
 });
 
 export type Env = z.infer<typeof envSchema>;

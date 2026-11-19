@@ -50,7 +50,7 @@ vi.mock('@/lib/supabase/server', () => ({
 vi.mock('@/lib/env', () => ({
   getEnv: vi.fn(() => ({
     ANTHROPIC_API_KEY: 'test-key',
-    ASSISTENTE_MODELO: 'claude-3-5-haiku-20241022',
+    ASSISTENTE_MODELO: 'claude-haiku-5-5',
   })),
 }));
 
@@ -199,7 +199,7 @@ describe('Assistente Virtual - Serviço', () => {
     it('deve retornar erro amigável quando ANTHROPIC_API_KEY não está configurada', async () => {
       vi.mocked(getEnv).mockReturnValueOnce({
         ANTHROPIC_API_KEY: '',
-        ASSISTENTE_MODELO: 'claude-3-5-haiku-20241022',
+        ASSISTENTE_MODELO: 'claude-haiku-5-5',
       });
 
       const resultado = await processarAssistente(mensagensBase, PERFIL_ID_TESTE);

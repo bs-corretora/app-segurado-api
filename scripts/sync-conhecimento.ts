@@ -15,7 +15,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = join(__filename, '..');
 
-const CONHECIMENTO_DIR = join(__dirname, 'supabase', 'conhecimento');
+const CONHECIMENTO_DIR = join(__dirname, '..', 'supabase', 'conhecimento');
 
 // Mapeamento de arquivo -> categoria
 const CATEGORIA_POR_ARQUIVO: Record<string, string> = {
@@ -64,6 +64,11 @@ async function main() {
     const caminho = join(CONHECIMENTO_DIR, arquivo);
     const conteudo = readFileSync(caminho, 'utf-8');
     const titulo = extrairTitulo(conteudo);
+    // Guarda só o corpo, sem a linha '# Título' (igual ao supabase/seed.sql)
+    const corpo = conteudo
+      .replace(/\r/g, '')
+      .replace(/^#\s+.+\n+/, '')
+      .trim();
     const categoria = CATEGORIA_POR_ARQUIVO[arquivo] || 'GERAL';
 
     // Verifica se já existe pelo slug (busca por título similar)
@@ -77,7 +82,7 @@ async function main() {
       // Atualiza
       const { error } = await supabase
         .from('conhecimento')
-        .update({ conteudo, categoria, atualizado_em: new Date().toISOString() })
+        .update({ conteudo: corpo, categoria, atualizado_em: new Date().toISOString() })
         .eq('id', existente.id);
       
       if (error) {
@@ -90,7 +95,7 @@ async function main() {
       // Insere
       const { error } = await supabase
         .from('conhecimento')
-        .insert({ titulo, conteudo, categoria });
+        .insert({ titulo, conteudo: corpo, categoria });
       
       if (error) {
         console.error(`❌ Erro ao inserir "${titulo}":`, error.message);
