@@ -33,6 +33,18 @@ const envSchema = z.object({
   GROQ_API_KEY: z.string().min(1, 'GROQ_API_KEY vazia').optional(),
   // Modelo da Groq com suporte a ferramentas (tool calling).
   ASSISTENTE_MODELO: z.string().default('openai/gpt-oss-120b'),
+  // E-mail transacional pelo Resend (#71, #72). Sem a chave, os e-mails só são registrados no log
+  // (sem destinatário nem código): serve para desenvolvimento e CI.
+  RESEND_API_KEY: z.string().min(1, 'RESEND_API_KEY vazia').optional(),
+  // Remetente, no formato `Nome <endereco@dominio>`. Obrigatório quando há RESEND_API_KEY.
+  EMAIL_REMETENTE: z
+    .string()
+    .trim()
+    .regex(/^[^<>]+<[^<>\s@]+@[^<>\s@]+\.[^<>\s@]+>$/, 'EMAIL_REMETENTE deve ser "Nome <endereco@dominio>"')
+    .optional(),
+}).refine((e) => !e.RESEND_API_KEY || e.EMAIL_REMETENTE, {
+  path: ['EMAIL_REMETENTE'],
+  message: 'EMAIL_REMETENTE é obrigatório quando RESEND_API_KEY está definida',
 });
 
 export type Env = z.infer<typeof envSchema>;

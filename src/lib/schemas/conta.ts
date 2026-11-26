@@ -38,6 +38,18 @@ export const loginSchema = z.object({
 
 export const esqueciSenhaSchema = z.object({ email });
 
+/** Reenvio do código de confirmação (#71): só o e-mail, como no esqueci a senha. */
+export const reenviarCodigoSchema = z.object({ email });
+
+/** Confirmação de e-mail (#71): o código de 6 dígitos que chegou por e-mail. */
+export const confirmarEmailSchema = z.object({
+  email,
+  codigo: z
+    .string({ error: 'código obrigatório' })
+    .trim()
+    .regex(/^\d{6}$/, 'o código tem 6 dígitos'),
+});
+
 const novaSenha = senhaForte('nova_senha');
 
 export const trocarSenhaSchema = z

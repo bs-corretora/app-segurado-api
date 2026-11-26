@@ -1,14 +1,14 @@
 import { type NextRequest } from 'next/server';
-import { supabaseAuth } from '@/lib/supabase/server';
 import { ok, erro, erroValidacao } from '@/lib/api-response';
-import { gravarSessao, tokensDoCorpo } from '@/lib/security/cookies';
 import { ipDe, limitar } from '@/lib/security/rate-limit';
 import { cadastroSchema } from '@/lib/schemas/conta';
 import { cadastrar } from '@/lib/services/cadastro';
 import { comLog } from '@/lib/http/log';
+import { descreverErro } from '@/lib/formato';
 
 // POST /api/v1/auth/cadastro — pública (seção 6.3). Rate limit: 3/min por IP (7.2).
-// Cria conta e perfil, vincula apólices e já inicia a sessão.
+// Cria conta e perfil, vincula apólices e manda o código de confirmação para o e-mail (#71).
+// NÃO inicia a sessão: quem entra é POST /auth/confirmar-email, com o código.
 async function post(req: NextRequest) {
   const bloqueio = await limitar('cadastro', ipDe(req));
   if (bloqueio) return bloqueio;
@@ -34,22 +34,16 @@ async function post(req: NextRequest) {
       return erro(503, 'INDISPONIVEL', 'Não foi possível concluir o cadastro agora');
     }
 
-    const { data } = await supabaseAuth().auth.signInWithPassword({
-      email: entrada.data.email,
-      password: entrada.data.senha,
-    });
-    const resposta = ok(
+    return ok(
       {
         id: resultado.perfil_id,
         apolices_vinculadas: resultado.apolices_vinculadas,
-        ...(data.session ? tokensDoCorpo(data.session) : {}),
+        confirmar_email: true,
       },
       201,
     );
-    // Se o login automático falhar, a conta existe: o app manda para o login.
-    return data.session ? gravarSessao(resposta, data.session) : resposta;
   } catch (e) {
-    console.error('[cadastro]', e);
+    console.error('[cadastro]', descreverErro(e));
     return erro(503, 'INDISPONIVEL', 'Não foi possível concluir o cadastro agora');
   }
 }

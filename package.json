@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "conhecimento": "tsx scripts/sync-conhecimento.ts"
+    "conhecimento": "tsx scripts/sync-conhecimento.ts",
+    "emails:previa": "tsx scripts/previa-emails.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0",
