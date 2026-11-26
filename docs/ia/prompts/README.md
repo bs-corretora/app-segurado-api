@@ -2,11 +2,11 @@
 
 Os prompts do app vivem no código e são versionados pelo Git. Esta pasta é o catálogo: cada prompt
 em um arquivo, com a origem (arquivo e linha) e o histórico. Rastreabilidade é o histórico do
-repositório; os rótulos v1 a v4 abaixo são nomes desta tabela, não tags do Git.
+repositório; os rótulos v1 a v5 abaixo são nomes desta tabela, não tags do Git.
 
 | Arquivo | Prompt | Origem no código |
 |---|---|---|
-| [01-prompt-de-sistema.md](01-prompt-de-sistema.md) | Prompt de sistema (regras, nomes reais das telas, formato JSON) | `src/lib/services/assistente.ts:150-211` |
+| [01-prompt-de-sistema.md](01-prompt-de-sistema.md) | Prompt de sistema (regras, nomes reais das telas, formato JSON) | `src/lib/services/assistente.ts:150-213` |
 | [02-descricoes-das-ferramentas.md](02-descricoes-das-ferramentas.md) | Descrições das 6 ferramentas de leitura | `src/lib/services/assistente.ts:77-148` |
 | [03-contexto-rag.md](03-contexto-rag.md) | Template do contexto recuperado e base de conhecimento | `assistente.ts:344-363`, `supabase/conhecimento/*.md` |
 
@@ -27,6 +27,7 @@ Links no formato `https://github.com/bs-corretora/app-segurado-api/commit/<sha>`
 | v3.1 | 2026-11-19 | [`c171f8f`](https://github.com/bs-corretora/app-segurado-api/commit/c171f8fad69d561a33c31b3e3ddc515497f2e598) | #59 (issue #57) | Modelo padrão `openai/gpt-oss-120b` | O `llama-3.3-70b-versatile` não estava mais disponível na Groq (corpo do PR #59) |
 | v3.2 | 2026-11-19 | [`246099a`](https://github.com/bs-corretora/app-segurado-api/commit/246099a2bff5064c51c8713ea19047e89a7d71fe) | #59 (issue #57) | `max_tokens` 1500 para 800; RAG de 5 para 3 trechos; repetição sem ferramentas em `tool_use_failed`; modelo reserva `openai/gpt-oss-20b` no 429; texto do prompt igual | Falha de `tool_use_failed` e cota de 8 mil tokens por minuto (ver [../prompts-que-falharam.md](../prompts-que-falharam.md)) |
 | v4 | 2026-11-19 | [`8377a19`](https://github.com/bs-corretora/app-segurado-api/commit/8377a19ff1b1a255982e202d732cb849ba598338) | #60 (issue #57) | Prompt de sistema ganha 16 linhas: citar número da apólice, texto sem Markdown, nunca inventar função (sem anexo de fotos, sem biometria, login por e-mail e senha) e o bloco "NOMES REAIS NO APP" | O teste ponta a ponta em produção mostrou nomes de telas inventados, Markdown e função inexistente |
+| v5 | 2026-11-25 | [`feee25f`](https://github.com/bs-corretora/app-segurado-api/commit/feee25f9d59fbcd441c53014db05b60a377266de) | #69 | Prompt de sistema ganha 2 linhas em "REGRAS CRÍTICAS DE SEGURANÇA": nunca afirmar nem prometer que um sinistro será pago, aprovado ou coberto, nem estimar indenização (orientar a acompanhar na aba "Sinistro" e falar com a equipe de sinistros); nunca confirmar cobertura (orientar a consultar a apólice e a corretora) | Regra prevista na especificação (P-01) que faltava no prompt; teste unitário passa a checar o prompt enviado à Groq |
 
 A tabela lista os commits que alteraram o texto do prompt ou os parâmetros enviados ao modelo. A
 conferência de que o texto da v1 para a v2 mudou só nas linhas descritas, e de que v2, v3 e v3.2 têm
@@ -38,8 +39,8 @@ prompt idêntico, foi feita comparando o conteúdo da constante `SYSTEM_PROMPT` 
 # Todas as alterações do arquivo que contém os prompts, com o diff
 git log --follow -p -- src/lib/services/assistente.ts
 
-# Só o trecho do prompt de sistema na versão atual (linhas 150-211)
-git log -L150,211:src/lib/services/assistente.ts
+# Só o trecho do prompt de sistema na versão atual (linhas 150-213)
+git log -L150,213:src/lib/services/assistente.ts
 
 # Base de conhecimento
 git log --follow -p -- supabase/conhecimento/

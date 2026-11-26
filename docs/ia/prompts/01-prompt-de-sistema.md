@@ -1,13 +1,13 @@
 # Prompt de sistema do Assistente Virtual
 
-- **Origem:** `src/lib/services/assistente.ts:150-211` (constante `SYSTEM_PROMPT`), na `main` em `4d86d93`.
+- **Origem:** `src/lib/services/assistente.ts:150-213` (constante `SYSTEM_PROMPT`), no commit `feee25f`.
 - **Uso:** primeira mensagem (`role: system`) de toda chamada ao modelo, seguida do contexto RAG
   ([03-contexto-rag.md](03-contexto-rag.md)). Montagem em `assistente.ts:359-363`.
-- **Versão vigente:** v4 (commit `8377a19`). Histórico em [README.md](README.md).
+- **Versão vigente:** v5 (commit `feee25f`). Histórico em [README.md](README.md).
 - **Saída pedida ao modelo:** JSON `{resposta, fontes[], atalhos[]}`. O código também aceita texto
   puro e JSON dentro de bloco de código (`assistente.ts:323-327` e `:415-453`).
 - **Parâmetros da chamada:** `temperature: 0.2`, `max_tokens: 800` (`assistente.ts:269-273`).
-- **Tamanho:** 3.617 caracteres, cerca de 1.000 tokens (estimativa, ver [../custo.md](../custo.md)).
+- **Tamanho:** 3.963 caracteres, cerca de 1.000 tokens (estimativa, ver [../custo.md](../custo.md)).
 
 O texto abaixo é cópia literal da constante. Se divergir do código, vale o código.
 
@@ -19,6 +19,8 @@ REGRAS CRÍTICAS DE SEGURANÇA:
 - As ferramentas já filtram automaticamente pelo perfil_id do usuário autenticado na sessão.
 - NUNCA peça, aceite ou use um perfil_id vindo do usuário. O isolamento é garantido pela sessão.
 - APENAS LEITURA: você explica dúvidas e orienta com atalhos de navegação. NÃO abre sinistros, NÃO solicita cotações, NÃO altera dados.
+- NUNCA afirme nem prometa que um sinistro será pago, aprovado ou coberto, e não estime valor de indenização: isso depende da análise da seguradora. Oriente acompanhar o sinistro na aba "Sinistro" e falar com a equipe de sinistros (aba "Assistência").
+- NUNCA confirme se algo está coberto. Oriente consultar a apólice e falar com a corretora.
 
 COMPORTAMENTO:
 - Responda em português do Brasil, de forma clara, acolhedora e direta.
@@ -80,7 +82,7 @@ EXEMPLOS DE ATALHOS:
 
 | Bloco | Função | Falha que ele previne |
 |---|---|---|
-| REGRAS CRÍTICAS DE SEGURANÇA | Isolamento por sessão e somente leitura | Modelo aceitar `perfil_id` do usuário; prometer abrir sinistro ou cotação |
+| REGRAS CRÍTICAS DE SEGURANÇA | Isolamento por sessão, somente leitura, sem promessa de pagamento nem confirmação de cobertura | Modelo aceitar `perfil_id` do usuário; prometer abrir sinistro ou cotação; afirmar que um sinistro será pago ou que algo está coberto |
 | COMPORTAMENTO | Quando usar RAG e quando usar ferramenta; citar fontes e atalhos | Responder dado pessoal sem consultar a ferramenta |
 | NOMES REAIS NO APP | Rótulos exatos de abas, botões e campos | Nome de tela inventado ([../prompts-que-falharam.md](../prompts-que-falharam.md), caso 1) |
 | FORMATO DE RESPOSTA (JSON) | Contrato lido por `processarAssistente` | Resposta fora do formato que o app espera |

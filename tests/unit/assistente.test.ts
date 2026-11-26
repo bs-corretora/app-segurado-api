@@ -657,3 +657,23 @@ describe('Assistente Virtual - recuos do provedor', () => {
     ).rejects.toBeInstanceOf(AssistenteIndisponivelError);
   });
 });
+
+describe('Assistente Virtual - regra de sinistro e cobertura (#69)', () => {
+  it('P-01: o prompt de sistema enviado à Groq proíbe prometer pagamento e confirmar cobertura', async () => {
+    mockRpc.mockResolvedValue({ data: [], error: null });
+    mockMessagesCreate.mockResolvedValueOnce(criarRespostaTexto('{"resposta":"ok","fontes":[],"atalhos":[]}'));
+
+    await processarAssistente([{ role: 'user', content: 'Meu sinistro vai ser pago?' }], PERFIL_ID_TESTE);
+
+    const corpo = JSON.parse((mockFetch.mock.calls[0] as unknown as [string, { body: string }])[1].body) as {
+      messages: Array<{ role: string; content: string }>;
+    };
+    const sistema = corpo.messages.find((m) => m.role === 'system')?.content ?? '';
+    expect(sistema).toContain('NUNCA afirme nem prometa que um sinistro será pago, aprovado ou coberto');
+    expect(sistema).toContain('não estime valor de indenização');
+    expect(sistema).toContain('aba "Sinistro"');
+    expect(sistema).toContain('equipe de sinistros');
+    expect(sistema).toContain('NUNCA confirme se algo está coberto');
+    expect(sistema).toContain('consultar a apólice e falar com a corretora');
+  });
+});
