@@ -175,11 +175,13 @@ Ver `.env.example`. O repositório nunca recebe o arquivo `.env` com valores.
 | `CORS_ALLOWED_ORIGINS` | não | Origens separadas por vírgula; `*` é recusado |
 | `COOKIE_SECURE` | não | Padrão `true`; `false` só em desenvolvimento sobre HTTP |
 | `SUPABASE_JWT_SECRET` | não | Só se o projeto usar segredo HS256 |
-| `INTERNAL_API_KEY` | não | Rota interna de push (Etapa 6), mínimo 32 caracteres. Vazia: a rota recusa tudo |
+| `INTERNAL_API_KEY` | não | Rotas internas de push e de e-mail, mínimo 32 caracteres. Vazia: as rotas recusam tudo |
 | `EXPO_PUSH_URL` | não | Endpoint do Expo Push; só se troca em teste |
 | `API_DOCS` | não | `true`/`false` liga ou desliga `/api/docs`; vazio = ligado só fora de produção |
 | `GROQ_API_KEY` | só para o assistente de IA | Chave da Groq (https://console.groq.com/keys). Vazia: `POST /api/v1/assistente` responde 503 e o resto da API funciona |
 | `ASSISTENTE_MODELO` | não | Modelo da Groq com suporte a ferramentas. Padrão `openai/gpt-oss-120b` |
+| `RESEND_API_KEY` | em produção | Chave do Resend para os e-mails (código de confirmação, redefinição de senha, avisos). Vazia: nenhum e-mail sai e a API só registra o tipo no log; o cadastro novo não consegue confirmar |
+| `EMAIL_REMETENTE` | com `RESEND_API_KEY` | `Nome <endereco@dominio>`, domínio verificado no Resend. Ex.: `BS Corretora <nao-responda@bsseguradora.online>` |
 
 Variável obrigatória faltando: a API não sobe e lista o que falta. Variável vazia conta como
 ausente.

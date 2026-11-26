@@ -17,6 +17,8 @@ services:
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
       - EXPO_PUSH_URL=${EXPO_PUSH_URL}
       - API_DOCS=${API_DOCS}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - EMAIL_REMETENTE=${EMAIL_REMETENTE}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:

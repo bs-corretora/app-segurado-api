@@ -47,7 +47,8 @@ A API usa **token Bearer**:
    Se o refresh também der 401, mande para a tela de login.
 6. Sair: `POST /auth/logout` com o Bearer, e apague os tokens guardados.
 
-O cadastro (`POST /auth/cadastro`) também já devolve os tokens, então a pessoa entra direto.
+O cadastro (`POST /auth/cadastro`) **não** devolve tokens: ele manda um código de 6 dígitos para
+o e-mail, e quem entra é `POST /auth/confirmar-email`. Ver a seção 5.1.
 
 Ao abrir o app, se houver token guardado, chame `GET /me`. Se responder 200, a pessoa já está
 logada e pode ir direto para o Início.
@@ -171,7 +172,8 @@ try {
   await entrar(email, senha);
   go('home');
 } catch (e) {
-  if (e instanceof ErroApi && e.status === 401) setErro('E-mail ou senha inválidos');
+  if (e instanceof ErroApi && e.erro === 'EMAIL_NAO_CONFIRMADO') go('codigo', { email });
+  else if (e instanceof ErroApi && e.status === 401) setErro('E-mail ou senha inválidos');
   else setErro(e.message);
 }
 
@@ -190,7 +192,9 @@ resposta está no Swagger, com exemplo real.
 | Tela | Chamada | Observação |
 |---|---|---|
 | Login | `POST /auth/login` | pública; 5 tentativas por minuto |
-| Cadastro | `POST /auth/cadastro` | pública; com o número de uma apólice do mesmo CPF, já vincula as apólices |
+| Cadastro | `POST /auth/cadastro` | pública; com o número de uma apólice do mesmo CPF, já vincula as apólices. Responde 201 `{ id, apolices_vinculadas, confirmar_email: true }`, sem tokens: vá para a tela do código |
+| Digite o código | `POST /auth/confirmar-email` `{email, codigo}` | pública; 200 com os mesmos tokens do login (ver seção 5.1) |
+| Reenviar código | `POST /auth/reenviar-codigo` `{email}` | pública; 204 sempre; o app espera 60 s entre pedidos |
 | Esqueci a senha | `POST /auth/esqueci-senha` `{email}` | pública; responde 204 sempre (ver seção 5) |
 | Início | `GET /dashboard` | nome, iniciais, tempo de casa, aniversário, não lidas, apólices ativas |
 | Apólices | `GET /apolices` | lista paginada |
@@ -232,14 +236,56 @@ o mesmo padrão.
 | Status | `erro` | O que fazer na tela |
 |---|---|---|
 | 400 | `VALIDACAO` | mostrar `campos[nome]` embaixo de cada campo |
+| 400 | `CODIGO_INVALIDO` | código de confirmação errado, expirado ou já usado; mostrar `mensagem` e oferecer reenviar |
 | 401 | `NAO_AUTENTICADO` | renovar o token; se falhar, ir para o login |
+| 403 | `EMAIL_NAO_CONFIRMADO` | login de conta que não confirmou o e-mail: ir para a tela do código |
 | 403 | `SEM_PERMISSAO` | conta sem acesso (ex.: segurado em rota de admin) |
 | 404 | `NAO_ENCONTRADO` | registro não existe ou é de outra pessoa |
 | 409 | `CONFLITO` | regra de negócio (ex.: sinistro em apólice vencida); mostrar `mensagem` |
 | 429 | `LIMITE_EXCEDIDO` | muitas tentativas; pedir para esperar um minuto |
 | 503 | `INDISPONIVEL` | banco ou serviço fora; pedir para tentar de novo |
 
-## 5. Esqueci a senha
+## 5. Confirmação de e-mail e esqueci a senha
+
+### 5.1 Código de confirmação no cadastro
+
+Fluxo:
+
+1. `POST /auth/cadastro` responde **201** `{ "id": "...", "apolices_vinculadas": 1, "confirmar_email": true }`.
+   Não há tokens: a pessoa ainda não está logada. Leve para a tela "Digite o código", guardando
+   o e-mail digitado.
+2. O e-mail chega com um código de **6 dígitos**, válido por **60 minutos** e de uso único.
+3. `POST /auth/confirmar-email` com `{ "email": "...", "codigo": "482915" }`:
+   - **200**: mesma resposta do login (`id`, `email`, `access_token`, `refresh_token`,
+     `expires_in`, `expires_at`). Guarde os tokens (`guardar(r)`) e vá para o Início.
+   - **400 `CODIGO_INVALIDO`**: código errado, vencido ou já usado. Mostre a `mensagem` e o
+     botão de reenviar. `campos.codigo` traz o texto para pôr embaixo do campo.
+   - **400 `VALIDACAO`**: o código não tem 6 dígitos ou o e-mail é inválido.
+   - **429**: muitas tentativas (10 por minuto por aparelho, 5 a cada 10 minutos por e-mail).
+4. "Reenviar código": `POST /auth/reenviar-codigo` com `{ "email": "..." }`. Responde **204**
+   sempre (não diz se a conta existe). O código novo invalida o anterior. Deixe o botão
+   desabilitado por **60 segundos** depois de cada pedido; o servidor aceita 3 pedidos a cada 15
+   minutos por e-mail e responde 429 além disso.
+5. No login, conta que não confirmou responde **403 `EMAIL_NAO_CONFIRMADO`** (só quando a senha
+   está certa). Leve para a mesma tela do código e chame o reenvio uma vez ao abrir, porque o
+   código do cadastro pode ter vencido.
+
+Se o cadastro for repetido com o mesmo e-mail antes de confirmar, a resposta é 409 `CONFLITO`:
+a conta já existe; mande para o login, que leva à tela do código.
+
+```js
+export async function confirmarEmail(email, codigo) {
+  const r = await api('/auth/confirmar-email', { method: 'POST', corpo: { email, codigo } });
+  guardar(r);
+  return r;
+}
+export const reenviarCodigo = (email) =>
+  api('/auth/reenviar-codigo', { method: 'POST', corpo: { email } });
+```
+
+Contas de teste do seed e contas criadas antes desta mudança já estão confirmadas.
+
+### 5.2 Esqueci a senha
 
 1. O app chama `POST /auth/esqueci-senha` com o e-mail e mostra "se o e-mail tiver conta, você
    vai receber um link".
@@ -248,8 +294,14 @@ o mesmo padrão.
 3. Depois ela volta ao app e entra com a senha nova. **O front não precisa fazer nenhuma tela
    para isso**, só a de pedir o link.
 
-Limite: o e-mail gratuito do Supabase manda poucos e-mails por hora, para o projeto inteiro.
-Teste com moderação; se não chegar, espere e tente mais tarde.
+O e-mail sai do remetente `nao-responda@bsseguradora.online` e o link vale 60 minutos. Limite:
+3 pedidos a cada 15 minutos por e-mail. Se não chegar, confira a caixa de spam.
+
+### 5.3 Avisos por e-mail
+
+Quando a corretora muda o status de um sinistro ou responde uma cotação, além da notificação no
+app, o segurado recebe um e-mail (protocolo, status e comentário; ou produto, resposta e valor).
+Não há nada a fazer no app para isso.
 
 ## 6. Notificações e PDF
 

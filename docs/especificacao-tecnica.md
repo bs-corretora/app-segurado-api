@@ -20,7 +20,8 @@ Documento de Requisitos emitido pela BS Labs (RF-01 a RF-08 e RNF-01 a RNF-03).
 
 - Integração com sistemas legados ou produtivos da BS Seguros.
 - Pagamento de prêmio ou emissão de boleto.
-- Envio de SMS. O único e-mail transacional é o de redefinição de senha.
+- Envio de SMS. E-mail só transacional: código de confirmação do cadastro, redefinição de senha e
+  avisos de sinistro e de cotação (decisão 10). Sem e-mail de marketing.
 - Regulação de sinistro. O sistema registra a abertura e o histórico de status.
 - Precificação real de cotação. O sistema registra o pedido e a resposta manual.
 - Autenticação por provedores externos (OAuth social).
@@ -380,6 +381,8 @@ erDiagram
 | destino_id | uuid | registro de destino |
 | lida_em | timestamptz | |
 | push_enviado_em | timestamptz | |
+| email_enviado_em | timestamptz | Fila do e-mail (#72); nulo = falta enviar. Linhas anteriores nascem com `criado_em` |
+| email_tentativas | smallint | Tentativas de envio do e-mail; na 3ª falha sai da fila |
 | criado_em | timestamptz | |
 
 **dispositivo**
@@ -442,8 +445,10 @@ Executada apenas no ambiente de desenvolvimento (`supabase/seed.sql`):
 
 | Método | Rota | Descrição |
 |---|---|---|
-| POST | `/auth/cadastro` | Pública. Cria conta e perfil, vincula apólices e inicia a sessão |
-| POST | `/auth/login` | Pública. `{email, senha}`; inicia a sessão |
+| POST | `/auth/cadastro` | Pública. Cria conta e perfil, vincula apólices e manda o código de confirmação; não inicia a sessão |
+| POST | `/auth/confirmar-email` | Pública. `{email, codigo}`; confirma o e-mail e inicia a sessão |
+| POST | `/auth/reenviar-codigo` | Pública. `{email}`; novo código para conta não confirmada; 204 sempre |
+| POST | `/auth/login` | Pública. `{email, senha}`; inicia a sessão. Conta não confirmada: 403 `EMAIL_NAO_CONFIRMADO` |
 | POST | `/auth/refresh` | Pública. Renova a sessão a partir do `refresh_token` no corpo ou do cookie de refresh |
 | POST | `/auth/logout` | Encerra a sessão e remove os cookies |
 | POST | `/auth/esqueci-senha` | Pública. Dispara o e-mail de redefinição; o link abre `/redefinir-senha` |
@@ -461,10 +466,21 @@ pelo dia de hoje em São Paulo; aceite dos termos. `aceita_marketing` é opciona
 `false` (opt-in). Conflito de CPF ou e-mail retorna mensagem genérica, sem indicar qual dado já
 existe.
 
-Login, cadastro e refresh devolvem no corpo `access_token`, `refresh_token`, `expires_in` e
-`expires_at`, além de gravar os cookies (seção 7.1).
+Login, confirmação de e-mail e refresh devolvem no corpo `access_token`, `refresh_token`,
+`expires_in` e `expires_at`, além de gravar os cookies (seção 7.1).
 
-Redefinição de senha: o Supabase Auth envia o e-mail com um link que, depois de conferido, abre
+Confirmação de e-mail (decisão 10): o cadastro cria o usuário com o e-mail não confirmado e manda
+um código de 6 dígitos. Quem gera e confere o código é o Supabase Auth
+(`auth.admin.generateLink` do tipo `signup`, que devolve o código sem enviar e-mail, e
+`auth.verifyOtp`): validade de 60 minutos (`otp_expiry`), uso único, o código novo invalida o
+anterior. O e-mail sai pela API, pelo Resend. O login de conta não confirmada responde 403
+`EMAIL_NAO_CONFIRMADO` (só depois de a senha conferir); o app leva à tela do código. O reenvio
+responde 204 para qualquer e-mail e só gera código para conta com perfil que aguarda confirmação
+(gerar código para e-mail sem conta criaria um usuário no Auth). Contas anteriores a esta regra
+continuam confirmadas.
+
+Redefinição de senha: o link é gerado pelo Supabase Auth (`generateLink` do tipo `recovery`) e o
+e-mail sai pela API, pelo Resend. Depois de conferido, o link abre
 a página `/redefinir-senha` da API com o token no fragmento da URL. A página chama
 `POST /auth/redefinir-senha`, que só aceita token nascido desse link (`amr` = `otp`) e encerra
 todas as sessões da conta. O endereço precisa constar nas Redirect URLs do Supabase Auth.
@@ -517,6 +533,15 @@ todas as sessões da conta. O endereço precisa constar nas Redirect URLs do Sup
 | POST | `/dispositivos` | Registra ou atualiza token de push |
 | DELETE | `/dispositivos/{token}` | Remove token (logout) |
 | POST | `/internal/push/pendentes` | Autenticada por `INTERNAL_API_KEY`. Envia push das notificações com `push_enviado_em` nulo |
+| POST | `/internal/email/pendentes` | Autenticada por `INTERNAL_API_KEY`. Reenvia os avisos por e-mail da fila (até 3 tentativas) |
+
+Avisos por e-mail: a mudança de status do sinistro (protocolo, status e comentário) e a resposta
+de cotação (produto, resposta e valor) também vão por e-mail. A fila fica em `notificacao`
+(`email_enviado_em`, `email_tentativas`) e só recebe notificações `SISTEMA` com destino `SINISTRO`
+ou `COTACAO`. A rota do admin tenta enviar na hora; o que falhar fica na fila e o agendador do push
+(`.github/workflows/push.yml`, a cada 15 minutos) chama `/internal/email/pendentes`. A reserva usa
+`FOR UPDATE SKIP LOCKED`, como a do push. O status do sinistro e a resposta da cotação nunca falham
+por causa do e-mail.
 
 ### 6.10 Administração
 
@@ -554,9 +579,9 @@ A especificação é gerada a partir dos schemas Zod usados na validação das r
 
 | Código | Condição |
 |---|---|
-| 400 | Entrada inválida |
+| 400 | Entrada inválida; `CODIGO_INVALIDO` no código de confirmação errado, expirado ou usado |
 | 401 | Sessão ausente ou expirada |
-| 403 | Papel sem permissão |
+| 403 | Papel sem permissão; `EMAIL_NAO_CONFIRMADO` no login de conta não confirmada |
 | 404 | Registro inexistente ou de outro usuário |
 | 429 | Limite de requisições excedido; cabeçalho `Retry-After` |
 
@@ -594,7 +619,9 @@ A especificação é gerada a partir dos schemas Zod usados na validação das r
 | Escopo | Limite |
 |---|---|
 | `/auth/login` | 5 req/min por IP |
-| `/auth/cadastro`, `/auth/esqueci-senha` | 3 req/min por IP |
+| `/auth/cadastro`, `/auth/esqueci-senha`, `/auth/reenviar-codigo` | 3 req/min por IP |
+| `/auth/esqueci-senha`, `/auth/reenviar-codigo` | 3 a cada 15 min por e-mail |
+| `/auth/confirmar-email` | 10 req/min por IP e 5 a cada 10 min por e-mail |
 | `/public/**` | 10 req/min por IP |
 | Demais rotas | 100 req/min por usuário |
 
@@ -636,14 +663,17 @@ Inicialização em desenvolvimento: `supabase start` seguido de `docker compose 
 | `SUPABASE_JWT_SECRET` | Segredo de validação do JWT; não utilizado quando o projeto usa chaves assimétricas (JWKS) |
 | `CORS_ALLOWED_ORIGINS` | Origens autorizadas, separadas por vírgula |
 | `COOKIE_SECURE` | `false` apenas em desenvolvimento local |
-| `INTERNAL_API_KEY` | Autenticação de `/internal/push/pendentes` |
+| `INTERNAL_API_KEY` | Autenticação de `/internal/push/pendentes` e `/internal/email/pendentes` |
+| `RESEND_API_KEY` | Chave do Resend. Sem ela, nenhum e-mail sai (a API só registra o tipo no log) |
+| `EMAIL_REMETENTE` | Remetente `Nome <endereco@dominio>`, domínio verificado no Resend |
 
 ### 8.3 Restrições operacionais
 
 | Restrição | Mitigação |
 |---|---|
 | Projetos do plano gratuito do Supabase são pausados após 7 dias sem atividade | Acesso periódico ao projeto antes de demonstrações |
-| O SMTP padrão do Supabase tem cota baixa de envio por hora | SMTP próprio (ex.: Resend) ou confirmação de e-mail desabilitada no protótipo |
+| O SMTP padrão do Supabase tem cota baixa de envio por hora | Os e-mails saem pela API, pelo Resend, com domínio próprio; o Supabase Auth não envia e-mail |
+| Plano gratuito do Resend: 100 e-mails/dia, 3.000/mês, 2 requisições/s | Suficiente para o protótipo; a fila espaça os envios. Em produção real, plano pago |
 | Entrega de push depende do dispositivo e da rede | Central de notificações in-app como canal redundante |
 | Telas sem dados comprometem a validação funcional | Seed completo, incluindo perfil com aniversário na data de demonstração |
 
@@ -671,5 +701,5 @@ decididos; mudar algum deles exige atualizar esta especificação antes do códi
 | 7 | Hospedagem da API | Render, serviço web a partir do `Dockerfile` |
 | 8 | Recompensa por indicação | Selo no aplicativo, sem valor monetário (P3) |
 | 9 | Usuário sem apólice vinculada | Acessa cotação, indicação, assistência (todos os contatos) e ajuda. Não abre sinistro; o Início destaca a cotação |
-| 10 | Confirmação de e-mail no cadastro | Desabilitada no protótipo, pela cota baixa do SMTP padrão do Supabase. A redefinição de senha por e-mail continua |
+| 10 | Confirmação de e-mail no cadastro | Obrigatória, com código de 6 dígitos gerado e conferido pelo Supabase Auth e enviado pela API pelo Resend, com domínio próprio. Sem confirmar, não há login. Contas criadas antes continuam confirmadas. (Até 25/11/2026 ficava desabilitada, pela cota baixa do SMTP padrão do Supabase.) |
 | 11 | Escopo P2 | Carteirinha digital, coberturas da apólice e aviso de renovação, nesta ordem, depois do P1 completo |

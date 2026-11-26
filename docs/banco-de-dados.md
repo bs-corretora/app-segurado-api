@@ -114,6 +114,8 @@ erDiagram
         uuid destino_id "registro de destino"
         timestamptz lida_em
         timestamptz push_enviado_em
+        timestamptz email_enviado_em
+        smallint email_tentativas
         timestamptz criado_em
     }
     DISPOSITIVO {

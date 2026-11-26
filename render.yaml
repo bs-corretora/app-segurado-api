@@ -31,3 +31,9 @@ services:
       # Swagger ligado em produção para o grupo e o mentor testarem. Desligar antes da entrega final.
       - key: API_DOCS
         value: "true"
+      # E-mail transacional pelo Resend (#71, #72). A chave fica só no painel do Render.
+      - key: RESEND_API_KEY
+        sync: false
+      # Formato "Nome <endereco@dominio>", com o domínio verificado no Resend.
+      - key: EMAIL_REMETENTE
+        sync: false
