@@ -134,6 +134,7 @@ jobs:
       - run: bash scripts/ci/etapa6.sh
       - run: bash scripts/ci/etapa5.sh
       - run: bash scripts/ci/sensiveis.sh
+      - run: bash scripts/ci/email.sh
       - run: bash scripts/ci/fechamento.sh
       - name: Log da API
         if: always()

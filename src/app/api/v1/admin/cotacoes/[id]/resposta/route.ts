@@ -4,6 +4,7 @@ import { exigirSessao } from '@/lib/security/sessao';
 import { idSchema } from '@/lib/schemas/app';
 import { respostaCotacaoSchema } from '@/lib/schemas/admin';
 import { responderCotacao } from '@/lib/services/admin';
+import { avisarPorEmail } from '@/lib/services/avisos-email';
 import { comLog } from '@/lib/http/log';
 
 // PATCH /api/v1/admin/cotacoes/{id}/resposta — só ADMIN (seção 6.10). Grava a resposta, marca
@@ -22,7 +23,11 @@ async function patch(req: NextRequest, { params }: { params: Promise<{ id: strin
 
   try {
     const r = await responderCotacao(id.data, entrada.data.resposta, entrada.data.valor_estimado);
-    if (r.ok) return ok(r.dado);
+    if (r.ok) {
+      // E-mail ao segurado (#72). Nunca falha: o que não sair agora o job reenvia.
+      await avisarPorEmail(id.data);
+      return ok(r.dado);
+    }
     if (r.motivo === 'cotacao_nao_encontrada') return naoEncontrado('Cotação');
     return erro(409, 'CONFLITO', 'A cotação já foi respondida');
   } catch (e) {

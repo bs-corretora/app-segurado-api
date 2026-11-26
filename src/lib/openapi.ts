@@ -2,9 +2,11 @@ import { z } from 'zod';
 import {
   atualizarMeSchema,
   cadastroSchema,
+  confirmarEmailSchema,
   esqueciSenhaSchema,
   loginSchema,
   redefinirSenhaSchema,
+  reenviarCodigoSchema,
   trocarSenhaSchema,
 } from '@/lib/schemas/conta';
 import { campanhaSchema, dispositivoSchema } from '@/lib/schemas/push';
@@ -161,7 +163,7 @@ export function especificacaoOpenApi() {
           scheme: 'bearer',
           bearerFormat: 'JWT',
           description:
-            'access_token devolvido por /auth/login, /auth/cadastro ou /auth/refresh. Vale 1 hora; ' +
+            'access_token devolvido por /auth/login, /auth/confirmar-email ou /auth/refresh. Vale 1 hora; ' +
             'renove com POST /auth/refresh mandando o refresh_token no corpo.',
         },
         cookieSessao: {
@@ -280,6 +282,11 @@ export function especificacaoOpenApi() {
             }),
             400: ref('Validacao'),
             401: resposta('E-mail ou senha inválidos'),
+            403: resposta('Senha certa, mas o e-mail ainda não foi confirmado (o app abre a tela do código)', {
+              status: 403,
+              erro: 'EMAIL_NAO_CONFIRMADO',
+              mensagem: 'Confirme seu e-mail para entrar. Use o código que enviamos ou peça um novo.',
+            }),
             429: ref('LimiteExcedido'),
           },
         },
@@ -287,8 +294,10 @@ export function especificacaoOpenApi() {
       '/auth/cadastro': {
         post: {
           tags: ['Autenticação e conta'],
-          summary: 'Criar conta, vincular apólices e entrar',
+          summary: 'Criar conta, vincular apólices e mandar o código de confirmação',
           description:
+            'NÃO inicia a sessão: manda um código de 6 dígitos para o e-mail, e quem entra é ' +
+            'POST /auth/confirmar-email. ' +
             'O vínculo exige CPF e o número de uma apólice do mesmo titular. Conflito de CPF ou ' +
             'e-mail responde 409 sem dizer qual dos dois. 3 por minuto por IP. Regras: nome completo (nome e ' +
             'sobrenome, só letras); telefone só dígitos com DDD válido (celular com 9, fixo com 2 a 5); ' +
@@ -307,16 +316,61 @@ export function especificacaoOpenApi() {
             aceita_marketing: false,
           }),
           responses: {
-            201: resposta('Conta criada e sessão iniciada', {
+            201: resposta('Conta criada; código de confirmação enviado para o e-mail', {
               id: 'c26c07d0-4520-447d-b0c7-0d54e784f6a1',
               apolices_vinculadas: 1,
+              confirmar_email: true,
+            }),
+            400: ref('Validacao'),
+            409: resposta('CPF ou e-mail já cadastrado'),
+            429: ref('LimiteExcedido'),
+          },
+        },
+      },
+      '/auth/confirmar-email': {
+        post: {
+          tags: ['Autenticação e conta'],
+          summary: 'Confirmar o e-mail com o código e entrar',
+          description:
+            'Confere o código de 6 dígitos que chegou por e-mail (vale 60 minutos e uma vez só). ' +
+            'Certo: confirma o e-mail e inicia a sessão, com a mesma resposta do login. Errado, ' +
+            'expirado ou já usado: 400 CODIGO_INVALIDO. 10 por minuto por IP e 5 a cada 10 minutos ' +
+            'por e-mail.',
+          ...publica,
+          requestBody: corpo(confirmarEmailSchema, { email: 'paulo.lima@email.com', codigo: '482915' }),
+          responses: {
+            200: resposta('E-mail confirmado e sessão iniciada', {
+              id: 'c26c07d0-4520-447d-b0c7-0d54e784f6a1',
+              email: 'paulo.lima@email.com',
               access_token: 'eyJhbGciOiJFUzI1NiIs…',
               refresh_token: 'v1.MjQ3NDY3…',
               expires_in: 3600,
               expires_at: 1794363884,
             }),
+            400: resposta('Código inválido, expirado ou já usado (ou entrada inválida: VALIDACAO)', {
+              status: 400,
+              erro: 'CODIGO_INVALIDO',
+              mensagem: 'Código inválido ou expirado. Peça um novo código.',
+              campos: { codigo: 'código inválido ou expirado' },
+            }),
+            429: ref('LimiteExcedido'),
+            503: resposta('Serviço de autenticação indisponível'),
+          },
+        },
+      },
+      '/auth/reenviar-codigo': {
+        post: {
+          tags: ['Autenticação e conta'],
+          summary: 'Reenviar o código de confirmação',
+          description:
+            'Responde 204 mesmo se o e-mail não tiver conta ou já estiver confirmado. Só conta que ' +
+            'aguarda confirmação recebe código novo, e o anterior deixa de valer. 3 por minuto por IP ' +
+            'e 3 a cada 15 minutos por e-mail (o app espera 60 segundos entre um pedido e outro).',
+          ...publica,
+          requestBody: corpo(reenviarCodigoSchema, { email: 'paulo.lima@email.com' }),
+          responses: {
+            204: resposta('Pedido recebido'),
             400: ref('Validacao'),
-            409: resposta('CPF ou e-mail já cadastrado'),
             429: ref('LimiteExcedido'),
           },
         },
@@ -361,8 +415,9 @@ export function especificacaoOpenApi() {
           tags: ['Autenticação e conta'],
           summary: 'Enviar e-mail de redefinição de senha',
           description:
-            'Responde 204 mesmo se o e-mail não tiver conta. 3 por minuto por IP. O link do e-mail ' +
-            'abre a página /redefinir-senha desta API, onde a pessoa cria a senha nova.',
+            'Responde 204 mesmo se o e-mail não tiver conta. 3 por minuto por IP e 3 a cada 15 minutos ' +
+            'por e-mail. O link do e-mail (vale 60 minutos) abre a página /redefinir-senha desta API, ' +
+            'onde a pessoa cria a senha nova.',
           ...publica,
           requestBody: corpo(esqueciSenhaSchema, { email: 'maria.souza@email.com' }),
           responses: {
@@ -868,6 +923,30 @@ export function especificacaoOpenApi() {
           },
         },
       },
+      '/internal/email/pendentes': {
+        post: {
+          tags: ['Push e campanhas'],
+          summary: 'Reenviar os avisos por e-mail que ficaram na fila (agendador)',
+          description:
+            'Avisos de sinistro e de cotação que falharam no envio na hora. Cada aviso tem até 3 ' +
+            'tentativas; depois sai da fila. Chamada pelo mesmo agendador do push, a cada 15 minutos.',
+          security: [{ chaveInterna: [] }],
+          responses: {
+            200: resposta('Resumo do envio', {
+              processadas: 2,
+              enviados: 1,
+              sem_destinatario: 0,
+              devolvidas: 1,
+              desistidas: 0,
+            }),
+            401: resposta('Chave interna ausente ou inválida', {
+              status: 401,
+              erro: 'NAO_AUTENTICADO',
+              mensagem: 'Chave interna ausente ou inválida',
+            }),
+          },
+        },
+      },
       '/admin/resumo': {
         get: {
           ...admin,
@@ -964,7 +1043,9 @@ export function especificacaoOpenApi() {
           summary: 'Mudar o status do sinistro (ADMIN)',
           description:
             'Grava o evento na linha do tempo e a notificação do segurado na mesma transação. O status ' +
-            'só avança (ABERTO → EM_ANALISE → CONCLUIDO); repetir ou voltar responde 409.',
+            'só avança (ABERTO → EM_ANALISE → CONCLUIDO); repetir ou voltar responde 409. Manda e-mail ' +
+            'ao segurado com protocolo e comentário; se o e-mail falhar, a rota responde igual e o ' +
+            'aviso fica na fila.',
           parameters: [parametroId('sinistro')],
           requestBody: corpo(statusSinistroSchema, {
             status: 'CONCLUIDO',
@@ -1019,7 +1100,9 @@ export function especificacaoOpenApi() {
         patch: {
           ...admin,
           summary: 'Responder cotação (ADMIN)',
-          description: 'Marca RESPONDIDA e notifica o segurado. Cotação já respondida: 409.',
+          description:
+            'Marca RESPONDIDA e notifica o segurado, também por e-mail (resposta e valor). Falha no ' +
+            'e-mail não muda a resposta da rota: o aviso fica na fila. Cotação já respondida: 409.',
           parameters: [parametroId('cotação')],
           requestBody: corpo(respostaCotacaoSchema, {
             resposta: 'Renovação com 10% de desconto.',

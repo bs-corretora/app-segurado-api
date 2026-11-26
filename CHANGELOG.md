@@ -7,10 +7,24 @@ dos PRs mesclados.
 
 ## [Não lançado]
 
+### Adicionado
+- Confirmação de e-mail no cadastro com código de 6 dígitos: `POST /auth/confirmar-email` (confirma
+  e inicia a sessão) e `POST /auth/reenviar-codigo` (204 sempre). O código é gerado e conferido pelo
+  Supabase Auth e enviado pela API pelo Resend (#71).
+- Avisos por e-mail quando o status do sinistro muda e quando a cotação é respondida, com fila em
+  `notificacao` (`email_enviado_em`, `email_tentativas`), envio na hora pela rota do admin e reenvio
+  por `POST /internal/email/pendentes` a cada 15 minutos, até 3 tentativas (#72).
+- Modelos de e-mail em `src/lib/email/` (HTML compatível com Gmail e Outlook e versão em texto) e
+  prévia com `npm run emails:previa`. Variáveis `RESEND_API_KEY` e `EMAIL_REMETENTE` (#71).
+
 ### Corrigido
 - Assistente virtual: o prompt de sistema passa a proibir afirmar ou prometer que um sinistro será pago e confirmar cobertura, orientando a acompanhar o sinistro no app e falar com a equipe e a corretora (#69).
 
 ### Alterado
+- `POST /auth/cadastro` não inicia mais a sessão: responde 201 com `confirmar_email: true` e sem
+  tokens. `POST /auth/login` de conta não confirmada responde 403 `EMAIL_NAO_CONFIRMADO` (#71).
+- `POST /auth/esqueci-senha` gera o link pelo Supabase Auth e envia o e-mail pelo Resend, com
+  limite de 3 pedidos a cada 15 minutos por e-mail; o link continua abrindo `/redefinir-senha` (#71).
 - Painel: CPF mascarado na lista de segurados (`***.877.665-**`), completo e formatado no detalhe,
   telefone como `(81) 99876-5432` em Segurados, Cotações e Indicações (#62).
 - Logs: erros do banco passam por redação de CPF, e-mail e telefone; o token do aparelho não vai

@@ -11,7 +11,7 @@ pessoal, rota ou log (ver `CONTRIBUTING.md`).
 | CPF | `perfil.cpf`, `apolice.cpf_titular` | Ligar o cadastro à apólice do titular (RF-01) e identificar o segurado no atendimento | 11 dígitos, validados pelos dígitos verificadores |
 | Telefone | `perfil.telefone` | Contato da corretora com o segurado | só dígitos |
 | Data de nascimento | `perfil.data_nascimento` | Aviso de aniversário e dados do perfil | `DATE` |
-| E-mail | `auth.users.email` (Supabase Auth) | Login e redefinição de senha | gerido pelo Supabase Auth; a API só o lê |
+| E-mail | `auth.users.email` (Supabase Auth) | Login, confirmação de e-mail, redefinição de senha e avisos de sinistro e cotação | gerido pelo Supabase Auth; a API só o lê |
 | Sinistros | `sinistro`, `sinistro_evento` | Abrir e acompanhar o sinistro (RF-04) | tipo, data, local, descrição livre e linha do tempo |
 | Cotações | `cotacao.dados` | Atender o pedido de cotação | JSON plano enviado pelo app; pode conter dados do bem a segurar |
 | Indicações | `indicacao` | Contatar quem foi indicado | nome, telefone e e-mail do indicado, enviados por quem indicou |
@@ -28,8 +28,29 @@ Senha nunca passa pela nossa base: fica no Supabase Auth, com hash.
   painel e pelas rotas `/api/v1/admin/*`. Segurado nessas rotas recebe 403.
 - **O banco** fecha a chave anônima por RLS; a API usa a chave de serviço só no servidor.
 - **Terceiros**: o Expo recebe o token do aparelho e o texto da notificação (título e mensagem,
-  que citam protocolo, nunca CPF ou telefone); o Supabase Auth envia o e-mail de redefinição;
-  o assistente virtual (Groq) recebe a pergunta digitada pelo segurado.
+  que citam protocolo, nunca CPF ou telefone); o assistente virtual (Groq) recebe a pergunta
+  digitada pelo segurado; o **Resend** entrega os e-mails (ver abaixo).
+
+## O que vai para o Resend (#71, #72)
+
+O Resend é o provedor que entrega os e-mails transacionais, a partir do domínio
+`bsseguradora.online` (região `sa-east-1`). A cada envio ele recebe:
+
+| E-mail | Destinatário | Conteúdo |
+|---|---|---|
+| Código de confirmação | e-mail do cadastro | primeiro nome e o código de 6 dígitos (vale 60 minutos, uso único) |
+| Redefinição de senha | e-mail da conta | primeiro nome e o link de redefinição (vale 60 minutos, uso único) |
+| Status do sinistro | e-mail do segurado | primeiro nome, protocolo, status e o comentário do analista |
+| Cotação respondida | e-mail do segurado | primeiro nome, produto, resposta da corretora e valor estimado |
+
+Nunca vão para o Resend: CPF, telefone, data de nascimento, número de apólice, descrição do
+sinistro nem os `dados` da cotação. O Resend guarda os e-mails enviados no painel dele por um
+tempo limitado (política do provedor); a API não guarda cópia. Quem gera e confere o código e o
+link é o Supabase Auth; o Supabase não envia e-mail nenhum.
+
+Sem `RESEND_API_KEY` (desenvolvimento e CI), nada sai: a API só registra no log o tipo do e-mail
+(`codigo-confirmacao`, `redefinir-senha`, `aviso-sinistro`, `aviso-cotacao`), sem destinatário,
+código nem link.
 
 ## Onde aparece mascarado ou formatado
 
@@ -58,6 +79,10 @@ consome a API de administração fora do painel precisa tratar o dado como pesso
   `[cpf]`, `[email]`, `[telefone]` e `[numero]`. Sem isso, o `details` do Postgres numa chave
   duplicada (`Key (cpf)=(99887766593) already exists`) iria inteiro para o log.
 - A resposta HTTP não muda: continua 503 com mensagem genérica.
+- E-mail (#71, #72): os logs de envio trazem só o tipo do e-mail e o id da notificação. Falha do
+  Resend é registrada pelo status HTTP e o nome do erro, nunca pelo corpo (que pode citar o
+  destinatário). O código de confirmação e o link de redefinição não aparecem em log nenhum.
+  `scripts/ci/email.sh` confere que o e-mail, o CPF e o código do teste não estão no log da API.
 
 ## Acesso a dado de outro usuário
 

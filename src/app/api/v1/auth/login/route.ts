@@ -28,6 +28,15 @@ async function post(req: NextRequest) {
     if (authIndisponivel(error)) {
       return erro(503, 'INDISPONIVEL', 'Serviço de autenticação indisponível');
     }
+    // O Supabase só chega a esta checagem depois de conferir a senha: quem recebe 403 sabe a
+    // senha da conta, então a resposta não revela nada a quem não sabe (#71).
+    if (error?.code === 'email_not_confirmed') {
+      return erro(
+        403,
+        'EMAIL_NAO_CONFIRMADO',
+        'Confirme seu e-mail para entrar. Use o código que enviamos ou peça um novo.',
+      );
+    }
     // Mensagem genérica: não revela se o e-mail existe.
     return erro(401, 'NAO_AUTENTICADO', 'E-mail ou senha inválidos');
   }

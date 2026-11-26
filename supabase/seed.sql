@@ -104,6 +104,9 @@ INSERT INTO public.notificacao (id, perfil_id, tipo, titulo, mensagem, destino_t
 ('9e443333-3333-3333-3333-333333333333', '55555555-5555-5555-5555-555555555555', 'SISTEMA', 'Seu sinistro foi concluído', 'SIN-2026-000124 foi concluído.', 'SINISTRO', 'a7d22222-2222-2222-2222-222222222222', NULL, '2026-09-25 16:00:00-03'),
 ('9e444444-4444-4444-4444-444444444444', '44444444-4444-4444-4444-444444444444', 'MARKETING', 'Proteja sua casa também', 'Clientes empresariais têm condição especial no seguro residencial.', NULL, NULL, NULL, '2026-10-10 12:00:00-03');
 
+-- Notificações do seed são antigas: não entram na fila do e-mail (#72), como as de produção na migration.
+UPDATE public.notificacao SET email_enviado_em = criado_em;
+
 -- Base de conhecimento RAG (Sub-issue #54)
 -- Gerado a partir de supabase/conhecimento/*.md; para o banco da nuvem use `npm run conhecimento`.
 

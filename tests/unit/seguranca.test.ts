@@ -45,6 +45,26 @@ describe('RNF-03 CORS allowlist', () => {
   });
 });
 
+describe('#71 variáveis do e-mail', () => {
+  it('sem RESEND_API_KEY o remetente é opcional (modo só-log)', async () => {
+    const { getEnv } = await carregarEnv({});
+    expect(getEnv().RESEND_API_KEY).toBeUndefined();
+  });
+  it('RESEND_API_KEY exige EMAIL_REMETENTE', async () => {
+    const { getEnv } = await carregarEnv({ RESEND_API_KEY: 're_x' });
+    expect(() => getEnv()).toThrow(/EMAIL_REMETENTE/);
+  });
+  it('EMAIL_REMETENTE precisa ser "Nome <endereco@dominio>"', async () => {
+    const { getEnv } = await carregarEnv({ RESEND_API_KEY: 're_x', EMAIL_REMETENTE: 'nao-responda@x.com' });
+    expect(() => getEnv()).toThrow(/EMAIL_REMETENTE/);
+    const ok = await carregarEnv({
+      RESEND_API_KEY: 're_x',
+      EMAIL_REMETENTE: 'BS Corretora <nao-responda@bsseguradora.online>',
+    });
+    expect(ok.getEnv().EMAIL_REMETENTE).toBe('BS Corretora <nao-responda@bsseguradora.online>');
+  });
+});
+
 describe('RNF-01 cookies', () => {
   const sessao = { access_token: 'AAA', refresh_token: 'RRR', expires_in: 3600 };
 

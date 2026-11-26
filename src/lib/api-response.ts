@@ -6,6 +6,8 @@ import { descreverErro } from '@/lib/formato';
 export type CodigoErro =
   | 'VALIDACAO'
   | 'NAO_AUTENTICADO'
+  | 'EMAIL_NAO_CONFIRMADO'
+  | 'CODIGO_INVALIDO'
   | 'SEM_PERMISSAO'
   | 'NAO_ENCONTRADO'
   | 'CONFLITO'

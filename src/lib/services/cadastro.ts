@@ -1,7 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import type { z } from 'zod';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { descreverErro } from '@/lib/formato';
 import type { cadastroSchema } from '@/lib/schemas/conta';
+import { enviarCodigoConfirmacao } from '@/lib/services/confirmacao-email';
 
 type DadosCadastro = z.infer<typeof cadastroSchema>;
 
@@ -20,9 +22,11 @@ function gerarCodigoIndicacao(tamanho = 8) {
 /**
  * Cadastro público (seções 5.4 e 6.3):
  * 1. com número de apólice, confere se ela é do CPF informado e ainda não tem dono;
- * 2. cria o usuário no Auth (e-mail já confirmado — decisão 10 da especificação);
+ * 2. cria o usuário no Auth com o e-mail AINDA NÃO confirmado (decisão 10 da especificação, #71);
  * 3. cria o perfil SEGURADO; se falhar, apaga o usuário do Auth para não sobrar conta órfã;
- * 4. vincula as apólices do titular e ajusta `cliente_desde` para a vigência mais antiga.
+ * 4. vincula as apólices do titular e ajusta `cliente_desde` para a vigência mais antiga;
+ * 5. manda o código de confirmação por e-mail. Se o envio falhar, a conta existe e o app oferece
+ *    reenviar o código (POST /auth/reenviar-codigo).
  */
 export async function cadastrar(dados: DadosCadastro): Promise<ResultadoCadastro> {
   const db = supabaseAdmin();
@@ -45,7 +49,7 @@ export async function cadastrar(dados: DadosCadastro): Promise<ResultadoCadastro
   const { data: criado, error: erroAuth } = await db.auth.admin.createUser({
     email: dados.email,
     password: dados.senha,
-    email_confirm: true,
+    email_confirm: false,
   });
   if (erroAuth || !criado.user) {
     // E-mail já usado: mensagem genérica na rota (não diz qual dado conflitou).
@@ -80,7 +84,7 @@ export async function cadastrar(dados: DadosCadastro): Promise<ResultadoCadastro
   if (erroPerfil) {
     await db.auth.admin.deleteUser(perfilId).catch(() => undefined);
     if (erroPerfil.code === '23505') return { ok: false, motivo: 'CONFLITO' };
-    console.error('[cadastro] erro ao criar perfil:', erroPerfil);
+    console.error('[cadastro] erro ao criar perfil:', descreverErro(erroPerfil));
     return { ok: false, motivo: 'FALHA' };
   }
 
@@ -92,8 +96,10 @@ export async function cadastrar(dados: DadosCadastro): Promise<ResultadoCadastro
         'id',
         apolicesDoTitular.map((a) => a.id),
       );
-    if (error) console.error('[cadastro] erro ao vincular apólices:', error);
+    if (error) console.error('[cadastro] erro ao vincular apólices:', descreverErro(error));
   }
+
+  await enviarCodigoConfirmacao(dados.email, dados.nome);
 
   return { ok: true, perfil_id: perfilId, apolices_vinculadas: apolicesDoTitular.length };
 }

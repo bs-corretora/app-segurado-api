@@ -7,6 +7,14 @@ const limitadores = {
   login: new RateLimiterMemory({ keyPrefix: 'login', points: 5, duration: 60 }),
   cadastro: new RateLimiterMemory({ keyPrefix: 'cadastro', points: 3, duration: 60 }),
   esqueciSenha: new RateLimiterMemory({ keyPrefix: 'esqueci', points: 3, duration: 60 }),
+  // Por e-mail (#71): sem ele, IPs diferentes encheriam a caixa de alguém com e-mails nossos.
+  esqueciSenhaEmail: new RateLimiterMemory({ keyPrefix: 'esqueci-email', points: 3, duration: 900 }),
+  // Confirmação de e-mail (#71). O código tem 6 dígitos e vale 1 hora: o limite por e-mail
+  // deixa no máximo 30 palpites por hora para a mesma conta, venham de quantos IPs vierem.
+  confirmarEmail: new RateLimiterMemory({ keyPrefix: 'confirmar', points: 10, duration: 60 }),
+  confirmarEmailConta: new RateLimiterMemory({ keyPrefix: 'confirmar-email', points: 5, duration: 600 }),
+  reenviarCodigo: new RateLimiterMemory({ keyPrefix: 'reenviar', points: 3, duration: 60 }),
+  reenviarCodigoConta: new RateLimiterMemory({ keyPrefix: 'reenviar-email', points: 3, duration: 900 }),
   publico: new RateLimiterMemory({ keyPrefix: 'publico', points: 10, duration: 60 }),
   usuario: new RateLimiterMemory({ keyPrefix: 'usuario', points: 100, duration: 60 }),
   // Assistente Virtual (Issue #55): 20 perguntas a cada 10 minutos por usuário
