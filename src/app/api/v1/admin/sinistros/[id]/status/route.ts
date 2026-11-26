@@ -4,6 +4,7 @@ import { exigirSessao } from '@/lib/security/sessao';
 import { idSchema } from '@/lib/schemas/app';
 import { statusSinistroSchema } from '@/lib/schemas/admin';
 import { alterarStatusSinistro } from '@/lib/services/admin';
+import { avisarPorEmail } from '@/lib/services/avisos-email';
 import { comLog } from '@/lib/http/log';
 
 // PATCH /api/v1/admin/sinistros/{id}/status — só ADMIN (seções 5.4 e 6.10).
@@ -28,7 +29,11 @@ async function patch(req: NextRequest, { params }: { params: Promise<{ id: strin
       entrada.data.comentario,
       sessao.perfil_id,
     );
-    if (r.ok) return ok(r.dado);
+    if (r.ok) {
+      // E-mail ao segurado (#72). Nunca falha: o que não sair agora o job reenvia.
+      await avisarPorEmail(id.data);
+      return ok(r.dado);
+    }
     if (r.motivo === 'sinistro_nao_encontrado') return naoEncontrado('Sinistro');
     if (r.motivo === 'status_igual') {
       return erro(409, 'CONFLITO', `O sinistro já está como ${entrada.data.status}`);

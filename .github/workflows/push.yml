@@ -2,7 +2,8 @@ name: Push pendentes
 
 # Agendador do push (Etapa 6): chama POST /api/v1/internal/push/pendentes na API publicada.
 # As notificações nascem no banco (job de aniversário do pg_cron, campanhas, mudança de status);
-# esta chamada é que manda o push pelo Expo.
+# esta chamada é que manda o push pelo Expo. Depois chama POST /api/v1/internal/email/pendentes,
+# que reenvia os avisos por e-mail que falharam na hora (#72, até 3 tentativas).
 #
 # Precisa de dois secrets no repositório (Settings > Secrets and variables > Actions):
 #   API_URL           endereço público da API, sem barra no fim (ex.: https://app-segurado-api.onrender.com)
@@ -35,6 +36,12 @@ jobs:
             exit 0
           fi
           # O plano gratuito do Render dorme após 15 min sem acesso: o primeiro pedido pode levar ~1 min.
-          curl -sS --fail-with-body --max-time 120 --retry 2 --retry-delay 10 \
-            -X POST -H "Authorization: Bearer $INTERNAL_API_KEY" \
-            "$API_URL/api/v1/internal/push/pendentes"
+          # Uma falha do push não impede a fila do e-mail, e vice-versa: o passo só falha no fim.
+          falhou=0
+          for fila in push email; do
+            curl -sS --fail-with-body --max-time 120 --retry 2 --retry-delay 10 \
+              -X POST -H "Authorization: Bearer $INTERNAL_API_KEY" \
+              "$API_URL/api/v1/internal/$fila/pendentes" || falhou=1
+            echo
+          done
+          exit $falhou
