@@ -51,7 +51,7 @@ export const respostaCotacaoSchema = z.object({
   // NUMERIC(12,2): até 9.999.999.999,99.
   valor_estimado: z
     .number({ error: 'valor_estimado deve ser um número' })
-    .nonnegative('valor_estimado não pode ser negativo')
+    .positive('valor_estimado deve ser maior que zero')
     .max(9_999_999_999.99, 'valor_estimado muito alto')
     .multipleOf(0.01, 'valor_estimado com no máximo 2 casas decimais')
     .optional(),
