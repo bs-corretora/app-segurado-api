@@ -158,7 +158,8 @@ Não dependem da API: valem para qualquer cliente que escreva no banco.
 - **Vigência**: `fim_vigencia > inicio_vigencia`.
 - **Protocolo de sinistro**: gerado por trigger com sequência, `SIN-AAAA-NNNNNN`.
 - **Sinistro só de apólice própria**: trigger recusa sinistro cuja apólice é de outro perfil.
-- **Ocorrência não futura**: `data_ocorrencia <= now()`.
+- **Ocorrência não futura**: `data_ocorrencia <= now()`. O limite de 1 ano atrás (prescrição) é validado só na API.
+- **Marketing é opt-in**: `perfil.aceita_marketing` tem `DEFAULT false`.
 - **`atualizado_em`** do sinistro é atualizado por trigger em todo UPDATE.
 - **Destino da notificação**: `destino_tipo` e `destino_id` são nulos juntos ou preenchidos juntos.
 

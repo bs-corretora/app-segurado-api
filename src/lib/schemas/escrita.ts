@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { normalizarNome, nomeValido, telefoneValido } from '@/lib/validacao/campos';
 
 // Schemas da Etapa 4: cotação (seção 6.7) e indicação (seção 6.8).
 
@@ -9,7 +10,16 @@ export const PRODUTOS_COTACAO = ['AUTO', 'RESIDENCIAL', 'VIDA', 'EMPRESARIAL'] a
 const dadosCotacao = z
   .record(
     z.string().min(1).max(60),
-    z.union([z.string().max(500), z.number(), z.boolean(), z.null()]),
+    z.union([
+      z
+        .string()
+        .trim()
+        .max(500)
+        .refine((v) => v !== '', 'texto não pode ser vazio ou só espaços'),
+      z.number().finite().min(0, 'números de 0 a 9999999999').max(9_999_999_999, 'números de 0 a 9999999999'),
+      z.boolean(),
+      z.null(),
+    ]),
     { error: 'dados deve ser um objeto com valores simples (texto, número ou sim/não)' },
   )
   .refine((d) => Object.keys(d).length <= 30, 'dados com no máximo 30 campos')
@@ -27,12 +37,20 @@ export type NovaCotacao = z.infer<typeof cotacaoSchema>;
 export const codigoIndicacaoSchema = z.string().regex(/^[A-Za-z0-9]{3,12}$/);
 
 export const indicadoSchema = z.object({
-  nome: z.string().trim().min(2, 'nome com no mínimo 2 caracteres').max(120, 'nome com no máximo 120 caracteres'),
+  nome: z
+    .string({ error: 'nome obrigatório' })
+    .transform(normalizarNome)
+    .refine(nomeValido, 'nome só com letras (2 a 120 caracteres)'),
   // Aceita com ou sem máscara; grava só os dígitos (DDD + número).
   telefone: z
     .string()
     .transform((v) => v.replace(/\D/g, ''))
-    .pipe(z.string().regex(/^\d{10,11}$/, 'telefone deve ter DDD + número (10 ou 11 dígitos)')),
+    .pipe(
+      z
+        .string()
+        .regex(/^\d{10,11}$/, 'telefone deve ter DDD + número (10 ou 11 dígitos)')
+        .refine(telefoneValido, 'telefone inválido: confira o DDD e o número'),
+    ),
   email: z
     .string()
     .trim()

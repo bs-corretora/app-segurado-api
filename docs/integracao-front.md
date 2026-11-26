@@ -199,7 +199,7 @@ resposta está no Swagger, com exemplo real.
 | Assistência 24h | `GET /contatos?tipo=ASSISTENCIA_24H` | telefone e WhatsApp |
 | Contatos de sinistro | `GET /contatos?tipo=SINISTRO` | |
 | Sinistros (lista) | `GET /sinistros` | mais recentes primeiro |
-| Abrir sinistro | `POST /sinistros` | só de apólice ativa; data não pode ser futura |
+| Abrir sinistro | `POST /sinistros` | só de apólice ativa; `descricao` obrigatória (10 a 2000 caracteres); data não pode ser futura nem ter mais de 1 ano |
 | Detalhe do sinistro | `GET /sinistros/{id}` | com a linha do tempo de eventos |
 | Cotações (lista) | `GET /cotacoes` | com a resposta da corretora quando houver |
 | Pedir cotação | `POST /cotacoes` | nasce `RECEBIDA` |
@@ -210,7 +210,7 @@ resposta está no Swagger, com exemplo real.
 | Marcar como lida | `PATCH /notificacoes/{id}/lida` | |
 | Assistente Virtual | `POST /assistente` | `{ mensagens: [{ papel, texto }] }` — histórico max 10; resposta: `{ resposta, fontes[], atalhos[] }`; rate limit 20/10min |
 | Perfil | `GET /me` | |
-| Editar dados | `PATCH /me` | só `telefone` e `aceita_marketing` |
+| Editar dados | `PATCH /me` | só `telefone` (só dígitos, com DDD válido) e `aceita_marketing` |
 | Trocar senha | `PATCH /me/senha` `{senha_atual, nova_senha}` | 204; senha atual errada dá 400 |
 | Sair | `POST /auth/logout` | |
 

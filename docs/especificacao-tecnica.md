@@ -272,7 +272,7 @@ erDiagram
 | cliente_desde | date | NOT NULL; definido pelo sistema |
 | papel | varchar(20) | `SEGURADO` \| `ADMIN`; cadastro público cria apenas `SEGURADO` |
 | codigo_indicacao | varchar(12) | UNIQUE; gerado no cadastro |
-| aceita_marketing | boolean | DEFAULT `true` |
+| aceita_marketing | boolean | DEFAULT `false` (opt-in; o cadastro grava o valor explícito) |
 | termos_aceitos_em | timestamptz | NOT NULL |
 | criado_em | timestamptz | DEFAULT `now()` |
 
@@ -452,9 +452,14 @@ Executada apenas no ambiente de desenvolvimento (`supabase/seed.sql`):
 | PATCH | `/me` | Atualiza `telefone` e `aceita_marketing` |
 | PATCH | `/me/senha` | Troca de senha; `{senha_atual, nova_senha}` |
 
-Validações do cadastro: dígito verificador do CPF; unicidade de CPF e e-mail; senha com no
-mínimo 8 caracteres; idade mínima de 18 anos; aceite dos termos. Conflito de CPF ou e-mail
-retorna mensagem genérica, sem indicar qual dado já existe.
+Validações do cadastro: dígito verificador do CPF; unicidade de CPF e e-mail; nome completo
+(nome e sobrenome, só letras, hífen e apóstrofo entre letras, 3 a 120 caracteres, normalizado em
+NFC e com espaços colapsados); telefone só dígitos, com DDD da lista oficial da Anatel (celular de
+11 dígitos começa com 9, fixo de 10 dígitos começa com 2 a 5); senha de 8 a 72 caracteres com ao
+menos uma letra e um número (também na troca e na redefinição); idade de 18 a 120 anos, contada
+pelo dia de hoje em São Paulo; aceite dos termos. `aceita_marketing` é opcional e, sem ele, vale
+`false` (opt-in). Conflito de CPF ou e-mail retorna mensagem genérica, sem indicar qual dado já
+existe.
 
 Login, cadastro e refresh devolvem no corpo `access_token`, `refresh_token`, `expires_in` e
 `expires_at`, além de gravar os cookies (seção 7.1).
@@ -483,7 +488,7 @@ todas as sessões da conta. O endereço precisa constar nas Redirect URLs do Sup
 | Método | Rota | Descrição |
 |---|---|---|
 | GET | `/contatos?tipo={tipo}` | Contatos ativos do tipo `ASSISTENCIA_24H` ou `SINISTRO`, filtrados pelos produtos do usuário; sem apólice vinculada, todos os contatos de assistência |
-| POST | `/sinistros` | Abertura; retorna o protocolo |
+| POST | `/sinistros` | Abertura; retorna o protocolo. `descricao` obrigatória (10 a 2000 caracteres); `data_ocorrencia` não futura e de no máximo 1 ano atrás (prescrição, Código Civil art. 206, §1º, II) |
 | GET | `/sinistros` | Sinistros do usuário |
 | GET | `/sinistros/{id}` | Detalhe com histórico de eventos |
 
@@ -491,7 +496,7 @@ todas as sessões da conta. O endereço precisa constar nas Redirect URLs do Sup
 
 | Método | Rota | Descrição |
 |---|---|---|
-| POST | `/cotacoes` | Registro de pedido |
+| POST | `/cotacoes` | Registro de pedido. Em `dados`: números de 0 a 9999999999 e textos que não sejam só espaços |
 | GET | `/cotacoes` | Pedidos do usuário, com resposta quando houver |
 | GET | `/cotacoes/{id}` | Detalhe do pedido, com resposta quando houver |
 
@@ -501,7 +506,7 @@ todas as sessões da conta. O endereço precisa constar nas Redirect URLs do Sup
 |---|---|---|
 | GET | `/indicacoes/link` | Link de indicação do usuário |
 | GET | `/indicacoes` | Indicações feitas pelo usuário |
-| POST | `/public/indicacoes/{codigo}` | Pública. Registro do indicado a partir da página pública |
+| POST | `/public/indicacoes/{codigo}` | Pública. Registro do indicado a partir da página pública. Nome só com letras (2 a 120); telefone com DDD oficial, aceita máscara |
 
 ### 6.9 Notificações
 
@@ -524,7 +529,7 @@ Todas as rotas exigem o papel `ADMIN`; demais papéis recebem `403`.
 | GET | `/admin/sinistros?status=` | Sinistros com filtro |
 | PATCH | `/admin/sinistros/{id}/status` | Altera status, grava evento e notifica |
 | GET | `/admin/cotacoes?status=` | Cotações com filtro |
-| PATCH | `/admin/cotacoes/{id}/resposta` | Registra resposta e notifica |
+| PATCH | `/admin/cotacoes/{id}/resposta` | Registra resposta e notifica. `valor_estimado`, quando enviado, é maior que zero |
 | GET | `/admin/indicacoes?status=` | Indicações com filtro |
 | PATCH | `/admin/indicacoes/{id}/status` | Altera status |
 | GET, POST, PATCH | `/admin/contatos` | Manutenção de contatos |

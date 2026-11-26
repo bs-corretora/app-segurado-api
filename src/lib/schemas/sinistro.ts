@@ -15,6 +15,13 @@ const textoOpcional = (max: number) =>
     .transform((v) => (v === '' ? undefined : v))
     .optional();
 
+/** Prescrição da pretensão do segurado: 1 ano (Código Civil, art. 206, §1º, II). */
+function limiteAntigo() {
+  const d = new Date();
+  d.setUTCFullYear(d.getUTCFullYear() - 1);
+  return d.getTime();
+}
+
 export const abrirSinistroSchema = z.object({
   apolice_id: idSchema,
   tipo: z.enum(TIPOS_SINISTRO, {
@@ -23,9 +30,17 @@ export const abrirSinistroSchema = z.object({
   // Com fuso (ex.: 2026-10-29T14:30:00-03:00): o banco guarda timestamptz.
   data_ocorrencia: z.iso
     .datetime({ offset: true, error: 'data_ocorrencia deve estar no formato AAAA-MM-DDThh:mm:ss±hh:mm' })
-    .refine((d) => new Date(d).getTime() <= Date.now(), 'data_ocorrencia não pode ser futura'),
+    .refine((d) => new Date(d).getTime() <= Date.now(), 'data_ocorrencia não pode ser futura')
+    .refine(
+      (d) => new Date(d).getTime() >= limiteAntigo(),
+      'data_ocorrencia com mais de 1 ano: o prazo para avisar o sinistro prescreveu',
+    ),
   local: textoOpcional(200),
-  descricao: textoOpcional(2000),
+  descricao: z
+    .string({ error: 'descricao obrigatória' })
+    .trim()
+    .min(10, 'descreva o ocorrido com ao menos 10 caracteres')
+    .max(2000, 'no máximo 2000 caracteres'),
 });
 
 export type AbrirSinistro = z.infer<typeof abrirSinistroSchema>;

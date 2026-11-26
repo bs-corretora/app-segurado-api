@@ -290,7 +290,10 @@ export function especificacaoOpenApi() {
           summary: 'Criar conta, vincular apólices e entrar',
           description:
             'O vínculo exige CPF e o número de uma apólice do mesmo titular. Conflito de CPF ou ' +
-            'e-mail responde 409 sem dizer qual dos dois. 3 por minuto por IP.',
+            'e-mail responde 409 sem dizer qual dos dois. 3 por minuto por IP. Regras: nome completo (nome e ' +
+            'sobrenome, só letras); telefone só dígitos com DDD válido (celular com 9, fixo com 2 a 5); ' +
+            'idade de 18 a 120 anos; senha de 8 a 72 caracteres com letra e número; ' +
+            '`aceita_marketing` é opcional e, sem ele, vale false.',
           ...publica,
           requestBody: corpo(cadastroSchema, {
             nome: 'Paulo Lima',
@@ -301,6 +304,7 @@ export function especificacaoOpenApi() {
             senha: 'Senha@1234',
             numero_apolice: 'AU-2026-000999',
             aceite_termos: true,
+            aceita_marketing: false,
           }),
           responses: {
             201: resposta('Conta criada e sessão iniciada', {
@@ -523,7 +527,9 @@ export function especificacaoOpenApi() {
           summary: 'Abrir sinistro',
           description:
             'Grava o sinistro e o evento ABERTO na mesma transação e devolve o protocolo. ' +
-            'Apólice de outro usuário: 404; apólice que não está ATIVA: 409.',
+            'Apólice de outro usuário: 404; apólice que não está ATIVA: 409. `descricao` é obrigatória ' +
+            '(10 a 2000 caracteres) e `data_ocorrencia` não pode ser futura nem ter mais de 1 ano ' +
+            '(prescrição, Código Civil art. 206, §1º, II).',
           ...autenticada,
           requestBody: corpo(abrirSinistroSchema, {
             apolice_id: '6f1c1111-1111-1111-1111-111111111111',
@@ -607,7 +613,8 @@ export function especificacaoOpenApi() {
           tags: ['Cotações'],
           summary: 'Pedir cotação',
           description:
-            'O pedido nasce RECEBIDA. `dados` são os campos do formulário do produto (até 30, valores simples).',
+            'O pedido nasce RECEBIDA. `dados` são os campos do formulário do produto (até 30, valores ' +
+            'simples): números de 0 a 9999999999 e textos sem ficar só em branco.',
           ...autenticada,
           requestBody: corpo(cotacaoSchema, {
             produto: 'AUTO',

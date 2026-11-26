@@ -68,6 +68,7 @@ export async function cadastrar(dados: DadosCadastro): Promise<ResultadoCadastro
       nome: dados.nome,
       telefone: dados.telefone,
       data_nascimento: dados.data_nascimento,
+      aceita_marketing: dados.aceita_marketing,
       ...(clienteDesde ? { cliente_desde: clienteDesde } : {}),
       codigo_indicacao: gerarCodigoIndicacao(),
     });

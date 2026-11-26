@@ -45,10 +45,11 @@ confere 'login joao' 200 "$(req joao POST /auth/login '{"email":"joao.silva@emai
 
 echo '--- sinistros'
 confere 'sem sessão → 401' 401 "$(req anonimo GET /sinistros)"
-confere 'tipo inválido → 400' 400 "$(req maria POST /sinistros "{\"apolice_id\":\"$AUTO_ATIVA\",\"tipo\":\"ENCHENTE\",\"data_ocorrencia\":\"$ONTEM\"}")"
-confere 'data no futuro → 400' 400 "$(req maria POST /sinistros "{\"apolice_id\":\"$AUTO_ATIVA\",\"tipo\":\"COLISAO\",\"data_ocorrencia\":\"$AMANHA\"}")"
-confere 'apólice vencida → 409' 409 "$(req maria POST /sinistros "{\"apolice_id\":\"$VIDA_VENCIDA\",\"tipo\":\"OUTROS\",\"data_ocorrencia\":\"$ONTEM\"}")"
-confere 'apólice de outro segurado → 404' 404 "$(req maria POST /sinistros "{\"apolice_id\":\"$DO_JOAO\",\"tipo\":\"ROUBO\",\"data_ocorrencia\":\"$ONTEM\"}")"
+confere 'tipo inválido → 400' 400 "$(req maria POST /sinistros "{\"apolice_id\":\"$AUTO_ATIVA\",\"tipo\":\"ENCHENTE\",\"data_ocorrencia\":\"$ONTEM\",\"descricao\":\"Batida leve no estacionamento\"}")"
+confere 'data no futuro → 400' 400 "$(req maria POST /sinistros "{\"apolice_id\":\"$AUTO_ATIVA\",\"tipo\":\"COLISAO\",\"data_ocorrencia\":\"$AMANHA\",\"descricao\":\"Batida leve no estacionamento\"}")"
+confere 'sem descrição → 400' 400 "$(req maria POST /sinistros "{\"apolice_id\":\"$AUTO_ATIVA\",\"tipo\":\"COLISAO\",\"data_ocorrencia\":\"$ONTEM\"}")"
+confere 'apólice vencida → 409' 409 "$(req maria POST /sinistros "{\"apolice_id\":\"$VIDA_VENCIDA\",\"tipo\":\"OUTROS\",\"data_ocorrencia\":\"$ONTEM\",\"descricao\":\"Batida leve no estacionamento\"}")"
+confere 'apólice de outro segurado → 404' 404 "$(req maria POST /sinistros "{\"apolice_id\":\"$DO_JOAO\",\"tipo\":\"ROUBO\",\"data_ocorrencia\":\"$ONTEM\",\"descricao\":\"Batida leve no estacionamento\"}")"
 antes=$(sql "SELECT count(*) FROM sinistro WHERE perfil_id = '$MARIA'")
 confere 'abrir sinistro → 201' 201 "$(req maria POST /sinistros "{\"apolice_id\":\"$AUTO_ATIVA\",\"tipo\":\"COLISAO\",\"data_ocorrencia\":\"$ONTEM\",\"local\":\"Recife\",\"descricao\":\"Batida leve\"}")"
 id=$(js 'r.id')
