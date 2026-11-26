@@ -18,7 +18,7 @@ Back-end do App do Segurado (BS Seguros): API REST, painel administrativo web e 
 | Validação | Zod |
 | Documentação da API | OpenAPI 3 gerado dos schemas Zod, Swagger UI |
 | Tarefas agendadas | pg_cron |
-| IA | Google Gemini API, isolada em `src/lib/ai/client.ts` |
+| IA | Groq (`openai/gpt-oss-120b`, reserva `openai/gpt-oss-20b`) chamada por `fetch` em `src/lib/services/assistente.ts`; contexto por Full-Text Search do PostgreSQL. Ver [docs/ia/](docs/ia/README.md) |
 | Migrations e seed | Supabase CLI (`supabase/migrations/*.sql`, `supabase/seed.sql`) |
 | Contêiner e deploy | Docker; Render |
 
@@ -41,7 +41,7 @@ Admin web ──┘                  (contêiner)                     (PostgreSQ
 | `src/app/api/v1/**/route.ts` | Rotas da API: lê a entrada, valida com Zod e chama o serviço |
 | `src/app/api/docs`, `src/app/api/openapi.json` | Swagger UI e especificação OpenAPI |
 | `src/proxy.ts` | CORS das rotas `/api` (o antigo `middleware` no Next 16) |
-| `src/lib/services` | Regras de negócio e consultas ao banco |
+| `src/lib/services` | Regras de negócio e consultas ao banco; `assistente.ts` e `conhecimento.ts` são a integração de IA |
 | `src/lib/schemas` | Schemas Zod das entradas (usados também no OpenAPI) |
 | `src/lib/security` | Sessão por Bearer ou cookie (`exigirSessao`), cookies e rate limit |
 | `src/lib/supabase` | Cliente Supabase do lado do servidor |
@@ -49,11 +49,12 @@ Admin web ──┘                  (contêiner)                     (PostgreSQ
 | `src/lib/env.ts` | Leitura e validação das variáveis de ambiente |
 | `supabase/migrations` | Migrations SQL, uma por tabela |
 | `supabase/seed.sql`, `supabase/seed/apolices` | Dados fictícios e PDFs de exemplo |
-| `docs/` | Especificação, plano do back-end e [diagrama do banco](docs/banco-de-dados.md) |
+| `supabase/conhecimento` | Base de conhecimento (Markdown) do assistente, enviada ao banco por `npm run conhecimento` |
+| `docs/` | Especificação, plano do back-end, [diagrama do banco](docs/banco-de-dados.md) e [documentação de IA](docs/ia/README.md) |
 
 Páginas servidas pela própria API: `src/app/indicacao/**` (indicação pública),
 `src/app/redefinir-senha` (link do e-mail de senha) e `src/app/admin/**` (painel, em andamento).
-Ainda não existe: `src/lib/ai` (assistente e triagem com IA, depois do P1).
+A IA está só no assistente virtual do segurado (`POST /api/v1/assistente`); triagem de sinistro e rascunho de campanha por IA não foram implementados. Documentação em [docs/ia/](docs/ia/README.md).
 
 ## Andamento
 
@@ -68,6 +69,7 @@ Ainda não existe: `src/lib/ai` (assistente e triagem com IA, depois do P1).
 | 6. Jobs e push (aniversário, Expo Push, campanhas) | #8 | pronta |
 | 7. Documentação e deploy | #9 | pronta, no ar em https://app-segurado-api.onrender.com |
 | Fechamento: login por Bearer, troca e redefinição de senha, rotas P2 | #32, #33, #34 | pronta |
+| Assistente virtual com IA (RAG, ferramentas de leitura, Groq) | #53, #54, #55, #57 | pronta |
 | CI (lint, tipos, build, Docker, banco) | #14 | pronta |
 
 As rotas prontas estão todas no Swagger (`/api/docs`), com exemplo.
@@ -132,6 +134,7 @@ com `API_DOCS=true` no `.env`. A especificação crua está em `/api/openapi.jso
 | `npm run build` | Build de produção (não precisa do `.env`) |
 | `npm run lint` | ESLint |
 | `npx tsc --noEmit` | Checagem de tipos |
+| `npm run conhecimento` | Envia `supabase/conhecimento/*.md` para a tabela `conhecimento` (precisa de `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY`) |
 | `supabase db reset` | Recria o banco local do zero com migrations e seed |
 | `supabase status` | URLs e chaves do Supabase local |
 
@@ -175,9 +178,33 @@ Ver `.env.example`. O repositório nunca recebe o arquivo `.env` com valores.
 | `INTERNAL_API_KEY` | não | Rota interna de push (Etapa 6), mínimo 32 caracteres. Vazia: a rota recusa tudo |
 | `EXPO_PUSH_URL` | não | Endpoint do Expo Push; só se troca em teste |
 | `API_DOCS` | não | `true`/`false` liga ou desliga `/api/docs`; vazio = ligado só fora de produção |
+| `GROQ_API_KEY` | só para o assistente de IA | Chave da Groq (https://console.groq.com/keys). Vazia: `POST /api/v1/assistente` responde 503 e o resto da API funciona |
+| `ASSISTENTE_MODELO` | não | Modelo da Groq com suporte a ferramentas. Padrão `openai/gpt-oss-120b` |
 
 Variável obrigatória faltando: a API não sobe e lista o que falta. Variável vazia conta como
 ausente.
+
+## Assistente de IA (chaves e implantação)
+
+O assistente virtual do segurado usa a API da Groq. Fluxo, prompts, custo e limites em
+[docs/ia/](docs/ia/README.md).
+
+1. **Chave:** crie uma conta em https://console.groq.com e gere uma chave em **API Keys**. O plano
+   gratuito tem 8 mil tokens por minuto por modelo, o que serve para demonstração e piloto
+   ([custo e limites](docs/ia/custo.md)).
+2. **Local:** copie `.env.example` para `.env` e preencha `GROQ_API_KEY`. `ASSISTENTE_MODELO` já vem com o
+   padrão. Nunca coloque a chave em commit, issue ou grupo.
+3. **Render:** o `render.yaml` não pede essas variáveis. Em **Environment** do serviço, crie
+   `GROQ_API_KEY` (valor secreto) e, se quiser outro modelo, `ASSISTENTE_MODELO`. O serviço reinicia e passa
+   a responder.
+4. **Base de conhecimento:** o `db push --include-seed` (seção Deploy) já carrega os 8 trechos de
+   `supabase/seed.sql`. Depois de editar um arquivo de `supabase/conhecimento/`, rode `npm run conhecimento`
+   com `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` do banco desejado.
+5. **Conferir:** com um segurado logado, `POST /api/v1/assistente` com
+   `{"mensagens":[{"papel":"usuario","texto":"Como abro um sinistro?"}]}` deve responder 200 com `resposta`,
+   `fontes` e `atalhos`. 503 indica chave ausente ou inválida, ou cota da Groq esgotada.
+
+O modelo reserva (`openai/gpt-oss-20b`) usa a mesma chave e não tem variável.
 
 ## Deploy
 
