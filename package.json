@@ -13,9 +13,9 @@
     "emails:previa": "tsx scripts/previa-emails.ts"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.119.0",
+    "@supabase/supabase-js": "^2.119.2",
     "next": "16.4.6",
-    "rate-limiter-flexible": "^11.4.1",
+    "rate-limiter-flexible": "^11.5.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "zod": "^4.6.7"
