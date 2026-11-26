@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { ApiError, chamarApi, type CamposComErro } from '@/lib/admin/api';
+import { formatarTelefone, mascararCpf } from '@/lib/formato';
 import estilos from '../../admin.module.css';
 
 type StatusCotacao = 'RECEBIDA' | 'EM_ANALISE' | 'RESPONDIDA';
@@ -58,7 +59,12 @@ function rotuloChave(chave: string): string {
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
-function textoValor(valor: unknown): string {
+// "Dados enviados" é texto livre do app: CPF e telefone, se vierem, seguem o padrão do painel.
+function textoValor(valor: unknown, chave = ''): string {
+  if (typeof valor === 'string' && valor !== '') {
+    if (/cpf/i.test(chave)) return mascararCpf(valor);
+    if (/telefone|celular|whatsapp/i.test(chave)) return formatarTelefone(valor);
+  }
   if (valor === null || valor === undefined || valor === '') return '—';
   if (typeof valor === 'boolean') return valor ? 'Sim' : 'Não';
   if (typeof valor === 'object') return JSON.stringify(valor);
@@ -86,7 +92,7 @@ function Dados({ dados }: { dados: Record<string, unknown> | null }) {
     <>
       {pares.map(([chave, valor]) => (
         <div key={chave}>
-          <span className={estilos.apoio}>{rotuloChave(chave)}:</span> {textoValor(valor)}
+          <span className={estilos.apoio}>{rotuloChave(chave)}:</span> {textoValor(valor, chave)}
         </div>
       ))}
     </>

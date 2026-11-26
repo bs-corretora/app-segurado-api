@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { ApiError, chamarApi } from '@/lib/admin/api';
+import { formatarCpf, formatarTelefone, mascararCpf } from '@/lib/formato';
 import estilos from '../../admin.module.css';
 
 type SeguradoResumo = {
@@ -89,8 +90,9 @@ function DetalheSegurado({ detalhe }: { detalhe: Detalhe | null }) {
   if (!s) return null;
 
   const dados: [string, string][] = [
+    ['CPF', formatarCpf(s.cpf)],
     ['E-mail', texto(s.email)],
-    ['Telefone', texto(s.telefone)],
+    ['Telefone', formatarTelefone(s.telefone)],
     ['Data de nascimento', dataSimples(s.data_nascimento)],
     ['Cliente desde', dataSimples(s.cliente_desde)],
     ['Código de indicação', texto(s.codigo_indicacao)],
@@ -265,8 +267,8 @@ export default function SeguradosAdmin() {
                 <Fragment key={s.id}>
                   <tr>
                     <td>{s.nome}</td>
-                    <td>{s.cpf}</td>
-                    <td>{texto(s.telefone)}</td>
+                    <td>{mascararCpf(s.cpf)}</td>
+                    <td>{formatarTelefone(s.telefone)}</td>
                     <td>{texto(s.email)}</td>
                     <td>{dataSimples(s.cliente_desde)}</td>
                     <td>{simNao(s.aceita_marketing)}</td>
