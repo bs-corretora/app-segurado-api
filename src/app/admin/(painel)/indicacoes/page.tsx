@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { ApiError, chamarApi, type CamposComErro } from '@/lib/admin/api';
+import { formatarTelefone } from '@/lib/formato';
 import estilos from '../../admin.module.css';
 
 type StatusIndicacao = 'NOVA' | 'CONTATADA' | 'CONVERTIDA';
@@ -214,7 +215,7 @@ export default function IndicacoesAdmin() {
                   <tr>
                     <td>{i.nome}</td>
                     <td>
-                      {i.telefone ?? '—'}
+                      {formatarTelefone(i.telefone)}
                       <br />
                       <span className={estilos.apoio}>{i.email ?? '—'}</span>
                     </td>

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { z } from 'zod';
+import { descreverErro } from '@/lib/formato';
 
 /** Códigos de erro da seção 6.12 da especificação. */
 export type CodigoErro =
@@ -44,9 +45,9 @@ export function erroValidacao(error: z.ZodError) {
   return erro(400, 'VALIDACAO', mensagem, { campos });
 }
 
-/** Falha inesperada do banco/Storage: loga e responde 503 (detalhe só no log). */
+/** Falha inesperada do banco/Storage: loga e responde 503 (detalhe só no log, sem CPF, e-mail ou telefone). */
 export function falhaBanco(rota: string, e: unknown) {
-  console.error(`[${rota}]`, e);
+  console.error(`[${rota}]`, descreverErro(e));
   return erro(503, 'INDISPONIVEL', 'Banco de dados indisponível');
 }
 

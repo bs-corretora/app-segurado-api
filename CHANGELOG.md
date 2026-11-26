@@ -8,6 +8,10 @@ dos PRs mesclados.
 ## [Não lançado]
 
 ### Alterado
+- Painel: CPF mascarado na lista de segurados (`***.877.665-**`), completo e formatado no detalhe,
+  telefone como `(81) 99876-5432` em Segurados, Cotações e Indicações (#62).
+- Logs: erros do banco passam por redação de CPF, e-mail e telefone; o token do aparelho não vai
+  mais no caminho registrado. Novo `docs/dados-sensiveis.md` e roteiro `scripts/ci/sensiveis.sh` (#64).
 - Assistente virtual passa a usar a Groq (`GROQ_API_KEY`, modelo `openai/gpt-oss-120b`) no lugar
   da Anthropic; falha do provedor responde 503 (#57).
 
