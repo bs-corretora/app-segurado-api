@@ -7,6 +7,9 @@ dos PRs mesclados.
 
 ## [Não lançado]
 
+### Corrigido
+- Assistente virtual: o prompt de sistema passa a proibir afirmar ou prometer que um sinistro será pago e confirmar cobertura, orientando a acompanhar o sinistro no app e falar com a equipe e a corretora (#69).
+
 ### Alterado
 - Painel: CPF mascarado na lista de segurados (`***.877.665-**`), completo e formatado no detalhe,
   telefone como `(81) 99876-5432` em Segurados, Cotações e Indicações (#62).

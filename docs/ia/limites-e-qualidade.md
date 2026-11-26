@@ -40,12 +40,12 @@ qualidade é tratada em quatro camadas, da prevenção ao teste:
    - Respostas sobre o app vêm de trechos conferidos na mão contra as telas (`b6e725e`), com a fonte
      devolvida ao app.
    - Prompt com os nomes reais das telas, lista fechada de rotas para atalho e proibição de inventar
-     função (v4, `8377a19`); `temperature` 0,2 para reduzir variação.
+     função (v4, `8377a19`) e de prometer pagamento ou confirmar cobertura (v5, `feee25f`); `temperature` 0,2 para reduzir variação.
 2. **Validar o formato no código** (`assistente.ts:323-327`, `:415-458`): remove cercas de código,
    faz `JSON.parse`, normaliza `fontes` e `atalhos` (aceita `label`/`rota` e `rotulo`/`tela`), cai para
    texto simples quando não é JSON. No app, atalho para tela desconhecida some, o texto é sempre exibido
    como texto (nunca como HTML) e o Markdown residual é limpo (`textoAssistente`, PR #28 do app).
-3. **Testes automatizados.** `tests/unit/assistente.test.ts` (24 testes, contagem do PR #60) cobre:
+3. **Testes automatizados.** `tests/unit/assistente.test.ts` (25 testes) cobre:
    - busca de conhecimento: trechos relevantes, "esqueci a senha" em primeiro lugar, erro devolve lista vazia;
    - cada uma das 6 ferramentas e o uso do `perfil_id` da sessão (com tentativa de injeção de
      outro `perfil_id` na pergunta);
@@ -53,7 +53,8 @@ qualidade é tratada em quatro camadas, da prevenção ao teste:
    - fallback sem JSON, JSON cercado por bloco de código, normalização de fontes e atalhos;
    - provedor: erro HTTP e falha de rede viram erro de indisponibilidade; formato das ferramentas e da
      chave na chamada;
-   - recuos: `tool_use_failed`, modelo reserva no 429, 503 quando o reserva também esgota.
+   - recuos: `tool_use_failed`, modelo reserva no 429, 503 quando o reserva também esgota;
+   - o prompt de sistema enviado à Groq contém a regra de não prometer pagamento nem confirmar cobertura (#69).
    O CI roda `npm run test:coverage` com mínimo de 80% de linhas, além de lint, `tsc` e build.
 4. **Teste manual ponta a ponta em produção** (19/11/2026, Groq com o banco de produção, conta de
    teste): 5 de 5 perguntas com os dados da conta e atalho correto (PR #59); 3 perguntas com os
@@ -74,6 +75,10 @@ perguntas de avaliação nem medição de taxa de erro. O PR #56 cita um roteiro
 | Guardar conversa | O servidor não persiste histórico; ele fica só na tela do app |
 | Falar com base em CPF, e-mail ou senha | Nenhuma ferramenta devolve esses campos |
 
+Corrigido em 25/11/2026 (#69, v5 do prompt): a regra "nunca afirmar que um sinistro será pago" e a de não
+confirmar cobertura, previstas no P-01, agora estão no prompt de sistema, com teste unitário que confere o prompt
+enviado à Groq. O comportamento real do modelo continua verificável só à mão (ver "Não coberto").
+
 Planejado e **não implementado** (a entrega parcial previa; o repositório não registra o motivo, então
 confirmar com o grupo antes do pitch como justificar):
 
@@ -81,10 +86,6 @@ confirmar com o grupo antes do pitch como justificar):
   vai direto ao operador, sem sugestão de IA.
 - Rascunho de campanha por IA (P-03). Hoje a campanha é escrita pelo operador no painel.
 - Busca vetorial (`pgvector`) e conjunto de 30 perguntas de avaliação.
-- A regra "nunca afirmar que um sinistro será pago", prevista no P-01 da entrega parcial, **não está** no
-  prompt atual. O que existe é a proibição de agir (somente leitura) e a falta de qualquer ferramenta que
-  consulte cobertura ou decisão de pagamento. Um risco residual: o modelo ainda pode, em texto livre,
-  opinar sobre cobertura. Lista de evolução em [README.md](README.md#8-evolução-futura-não-implementado).
 
 ## 4. Aprendizados (observados no histórico)
 
